@@ -1,0 +1,8 @@
+[project]
+name = "indraquant-backend"
+version = "0.1.0"
+description = "IndraQuant — personal AI-assisted quantitative market analysis platform (backend)"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
