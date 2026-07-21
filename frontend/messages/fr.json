@@ -3,10 +3,53 @@
     "title": "IndraQuant",
     "description": "Plateforme personnelle d'aide à la décision pour les marchés financiers"
   },
-  "home": {
-    "title": "IndraQuant",
-    "tagline": "Aide à la décision pour les marchés financiers — probabiliste et explicable.",
-    "phaseLabel": "Phase 0",
-    "phaseStatus": "Environnement initialisé. Le dashboard arrive en Phase 1."
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "settings": "Réglages",
+    "logout": "Déconnexion"
+  },
+  "login": {
+    "title": "Connexion",
+    "subtitle": "Accédez à votre espace IndraQuant",
+    "email": "Adresse e-mail",
+    "password": "Mot de passe",
+    "submit": "Se connecter",
+    "submitting": "Connexion en cours…",
+    "invalidCredentials": "Email ou mot de passe incorrect.",
+    "serverError": "Le serveur est injoignable. Vérifiez que le backend est démarré."
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "instrument": "Instrument",
+    "timeframe": "Unité de temps",
+    "indicators": "Indicateurs",
+    "sma20": "MM 20",
+    "sma50": "MM 50",
+    "loading": "Chargement des données de marché…",
+    "loadError": "Impossible de charger les données de marché.",
+    "empty": "Aucune donnée disponible pour cette période.",
+    "lastPrice": "Dernier prix",
+    "autoRefresh": "Actualisation automatique toutes les 60 s",
+    "timeframes": {
+      "1m": "1 minute",
+      "5m": "5 minutes",
+      "15m": "15 minutes",
+      "1h": "1 heure",
+      "4h": "4 heures",
+      "1d": "1 jour"
+    }
+  },
+  "settings": {
+    "title": "Réglages",
+    "subtitle": "Préférences de l'application",
+    "language": "Langue",
+    "theme": "Thème",
+    "themes": { "dark": "Sombre", "light": "Clair" },
+    "languages": { "fr": "Français" },
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "saved": "Réglages enregistrés.",
+    "loadError": "Impossible de charger les réglages.",
+    "saveError": "Échec de l'enregistrement."
   }
 }

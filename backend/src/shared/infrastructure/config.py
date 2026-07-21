@@ -14,5 +14,12 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
 
+    jwt_secret: str
+    jwt_expires_minutes: int = 1440
+
+    # Single-user bootstrap credentials (ADR-001, ADR-013)
+    admin_email: str
+    admin_password: str
+
 
 settings = Settings()

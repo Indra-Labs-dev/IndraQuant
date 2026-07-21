@@ -23,11 +23,17 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+# Import all module models so autogenerate sees the full schema.
+from src.modules.auth.infrastructure.sqlalchemy_repository import UserModel  # noqa: F401,E402
+from src.modules.market_data.infrastructure.sqlalchemy_repository import (  # noqa: F401,E402
+    ExchangeModel,
+    InstrumentModel,
+    OhlcvCandleModel,
+)
+from src.modules.settings.infrastructure.sqlalchemy_repository import SettingModel  # noqa: F401,E402
+from src.shared.infrastructure.database import Base  # noqa: E402
+
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

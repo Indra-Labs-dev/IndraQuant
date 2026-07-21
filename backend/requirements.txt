@@ -6,5 +6,8 @@ pydantic
 pydantic-settings
 pymysql
 redis
+ccxt
+PyJWT
+bcrypt
 pytest
 httpx
