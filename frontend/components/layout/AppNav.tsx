@@ -1,23 +1,27 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 
 import { Link, usePathname, useRouter } from "@/lib/i18n/navigation";
 import { useAuthStore } from "@/lib/stores/auth";
 
+const NAV_ITEMS = [
+  { href: "/", key: "dashboard" },
+  { href: "/backtesting", key: "backtesting" },
+  { href: "/paper-trading", key: "paperTrading" },
+  { href: "/news", key: "news" },
+  { href: "/alerts", key: "alerts" },
+  { href: "/assistant", key: "assistant" },
+  { href: "/settings", key: "settings" },
+] as const;
+
 export function AppNav() {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const router = useRouter();
   const setToken = useAuthStore((state) => state.setToken);
-
-  const linkClass = (href: string) =>
-    `rounded-md px-3 py-1.5 text-sm transition-colors ${
-      pathname === href
-        ? "bg-white/10 text-[var(--foreground)]"
-        : "text-[var(--muted)] hover:text-[var(--foreground)]"
-    }`;
 
   const logout = () => {
     setToken(null);
@@ -40,27 +44,29 @@ export function AppNav() {
           </span>
         </span>
         <nav className="flex flex-wrap items-center gap-1">
-          <Link href="/" className={linkClass("/")}>
-            {t("dashboard")}
-          </Link>
-          <Link href="/backtesting" className={linkClass("/backtesting")}>
-            {t("backtesting")}
-          </Link>
-          <Link href="/paper-trading" className={linkClass("/paper-trading")}>
-            {t("paperTrading")}
-          </Link>
-          <Link href="/news" className={linkClass("/news")}>
-            {t("news")}
-          </Link>
-          <Link href="/alerts" className={linkClass("/alerts")}>
-            {t("alerts")}
-          </Link>
-          <Link href="/assistant" className={linkClass("/assistant")}>
-            {t("assistant")}
-          </Link>
-          <Link href="/settings" className={linkClass("/settings")}>
-            {t("settings")}
-          </Link>
+          {NAV_ITEMS.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`relative rounded-md px-3 py-1.5 text-sm transition-colors ${
+                  active
+                    ? "text-[var(--foreground)]"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="nav-active-pill"
+                    className="absolute inset-0 -z-10 rounded-md bg-white/10"
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  />
+                )}
+                {t(item.key)}
+              </Link>
+            );
+          })}
         </nav>
       </div>
       <button

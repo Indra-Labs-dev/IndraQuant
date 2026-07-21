@@ -189,6 +189,15 @@ export interface ModelScore {
   test_accuracy: number;
 }
 
+export interface PredictionTrackRecord {
+  bucket_low: number;
+  bucket_high: number;
+  bucket_resolved: number;
+  bucket_accuracy: number | null;
+  overall_resolved: number;
+  overall_accuracy: number | null;
+}
+
 export interface DirectionPrediction {
   instrument_id: number;
   timeframe: string;
@@ -196,11 +205,13 @@ export interface DirectionPrediction {
   horizon_candles: number;
   prob_up: number;
   prob_down: number;
+  raw_prob_up: number;
   models: ModelScore[];
   test_accuracy: number;
   baseline_accuracy: number;
   training_rows: number;
   top_features: FeatureContribution[];
+  track_record: PredictionTrackRecord;
   explanation: string;
 }
 
@@ -292,6 +303,14 @@ export interface Alert {
   message: string | null;
   created_at: string;
   triggered_at: string | null;
+}
+
+export interface MarketStatus {
+  instrument_id: number;
+  asset_class: string;
+  is_open: boolean;
+  next_open: string | null;
+  next_close: string | null;
 }
 
 export interface ApiError {

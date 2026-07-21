@@ -5,10 +5,15 @@ from fastapi import APIRouter, Depends, Query
 from src.composition_root import (
     get_current_user,
     get_list_instruments_use_case,
+    get_market_status_use_case,
     get_ohlcv_use_case,
 )
 from src.modules.auth.application.dto import UserProfile
 from src.modules.market_data.application.dto import InstrumentsResponse, OhlcvResponse
+from src.modules.market_data.application.use_cases.get_market_status import (
+    GetMarketStatusUseCase,
+    MarketStatusResponse,
+)
 from src.modules.market_data.application.use_cases.get_ohlcv import GetOhlcvUseCase
 from src.modules.market_data.application.use_cases.list_instruments import (
     ListInstrumentsUseCase,
@@ -25,6 +30,15 @@ def list_instruments(
     use_case: ListInstrumentsUseCase = Depends(get_list_instruments_use_case),
 ) -> InstrumentsResponse:
     return use_case.execute(asset_class, exchange)
+
+
+@router.get("/{instrument_id}/market-status")
+def get_market_status(
+    instrument_id: int,
+    _: UserProfile = Depends(get_current_user),
+    use_case: GetMarketStatusUseCase = Depends(get_market_status_use_case),
+) -> MarketStatusResponse:
+    return use_case.execute(instrument_id)
 
 
 @router.get("/{instrument_id}/ohlcv")

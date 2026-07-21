@@ -27,6 +27,11 @@ interface CandlestickChartProps {
    * The chart re-fits (zooms to content) only when this changes — not on
    * every periodic/live data refresh, so the user's zoom/pan is preserved. */
   fitKey: string;
+  /** Latest real-time tick (from the WebSocket). Applied via the series'
+   * native `update()` — a cheap, non-disruptive incremental redraw of just
+   * the trailing bar, which is what makes the chart feel "live" the way
+   * Binance/XTrend do, instead of replacing the whole dataset on every tick. */
+  liveCandle?: Candle | null;
 }
 
 export function CandlestickChart({
@@ -34,6 +39,7 @@ export function CandlestickChart({
   overlays,
   chartType = "candles",
   fitKey,
+  liveCandle,
 }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -154,6 +160,30 @@ export function CandlestickChart({
       lastFitKeyRef.current = fitKey;
     }
   }, [candles, overlays, chartType, fitKey]);
+
+  // Live tick: an incremental `.update()`, never a full `setData()` — this
+  // is what keeps the chart smooth and jitter-free on every WebSocket push.
+  useEffect(() => {
+    const series = mainSeriesRef.current;
+    if (!series || !liveCandle) return;
+    const time = (Date.parse(liveCandle.open_time) / 1000) as UTCTimestamp;
+    try {
+      if (chartType === "candles") {
+        (series as ISeriesApi<"Candlestick">).update({
+          time,
+          open: liveCandle.open,
+          high: liveCandle.high,
+          low: liveCandle.low,
+          close: liveCandle.close,
+        });
+      } else {
+        (series as ISeriesApi<"Area">).update({ time, value: liveCandle.close });
+      }
+    } catch {
+      // A tick for a view we've since navigated away from — safe to ignore,
+      // the next bulk refresh re-establishes a consistent dataset.
+    }
+  }, [liveCandle, chartType]);
 
   return <div ref={containerRef} className="h-[480px] w-full" />;
 }

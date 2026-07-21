@@ -259,6 +259,12 @@ export function deleteAlert(id: number): Promise<{ status: string }> {
   return request(`/alerts/${id}`, { method: "DELETE" });
 }
 
+export function getMarketStatus(
+  instrumentId: number,
+): Promise<import("./types").MarketStatus> {
+  return request(`/instruments/${instrumentId}/market-status`);
+}
+
 export function getOhlcv(
   instrumentId: number,
   timeframe: string,

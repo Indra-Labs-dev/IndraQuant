@@ -10,7 +10,7 @@ from src.modules.market_data.domain.value_objects import SUPPORTED_TIMEFRAMES, T
 
 router = APIRouter(tags=["market-data"])
 
-_MIN_POLL_SECONDS = 2
+_MIN_POLL_SECONDS = 1
 _MAX_POLL_SECONDS = 15
 _PUSH_WINDOW_CANDLES = 3
 

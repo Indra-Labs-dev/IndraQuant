@@ -1,0 +1,36 @@
+"""Prediction reliability calibration (ADR-020).
+
+This is the mechanism by which the Prediction Engine "learns from its
+mistakes" without needing full model retraining: every prediction's raw
+confidence is blended with the empirically observed accuracy of past
+predictions that fell in the same confidence bucket. As real outcomes
+accumulate, the blend shifts away from the raw (possibly over/under
+-confident) model output toward what has actually held true historically.
+"""
+
+BUCKET_WIDTH = 0.05
+_BUCKET_COUNT = int(round(0.5 / BUCKET_WIDTH))
+# Pseudo-count anchoring the blend to the raw estimate until enough real
+# outcomes have accumulated in a bucket.
+PRIOR_STRENGTH = 10
+
+
+def confidence_bucket(confidence: float) -> tuple[float, float]:
+    """Returns the [low, high) bucket a confidence value in [0.5, 1.0] falls into."""
+    if not (0.5 <= confidence <= 1.0):
+        raise ValueError("confidence must be in [0.5, 1.0]")
+    index = min(int((confidence - 0.5) / BUCKET_WIDTH), _BUCKET_COUNT - 1)
+    low = 0.5 + index * BUCKET_WIDTH
+    return round(low, 4), round(low + BUCKET_WIDTH, 4)
+
+
+def blend_calibration(
+    raw_confidence: float, bucket_accuracy: float | None, bucket_n: int
+) -> float:
+    """Shrinks the raw confidence toward the bucket's observed accuracy,
+    weighted by how many real outcomes back that bucket up (more history =
+    more trust in the observed accuracy over the model's raw claim)."""
+    if bucket_accuracy is None or bucket_n <= 0:
+        return raw_confidence
+    weight = bucket_n / (bucket_n + PRIOR_STRENGTH)
+    return raw_confidence * (1 - weight) + bucket_accuracy * weight

@@ -30,6 +30,9 @@ from src.modules.auth.infrastructure.sqlalchemy_repository import (
     SqlAlchemyUserRepository,
     UserModel,
 )
+from src.modules.market_data.application.use_cases.get_market_status import (
+    GetMarketStatusUseCase,
+)
 from src.modules.market_data.application.use_cases.get_ohlcv import GetOhlcvUseCase
 from src.modules.market_data.application.use_cases.list_instruments import (
     ListInstrumentsUseCase,
@@ -84,6 +87,15 @@ from src.modules.pattern_recognition.application.use_cases.detect_patterns impor
 )
 from src.modules.prediction_engine.application.use_cases.predict_direction import (
     PredictDirectionUseCase,
+)
+from src.modules.prediction_engine.application.use_cases.resolve_predictions import (
+    ResolvePredictionsUseCase,
+)
+from src.modules.prediction_engine.infrastructure.runner import (
+    PredictionResolverRunner,
+)
+from src.modules.prediction_engine.infrastructure.sqlalchemy_repository import (
+    SqlAlchemyPredictionRepository,
 )
 from src.modules.smart_money.application.use_cases.detect_smc import DetectSmcUseCase
 from src.modules.settings.application.use_cases.get_settings import GetSettingsUseCase
@@ -161,6 +173,12 @@ def get_list_instruments_use_case(
     return ListInstrumentsUseCase(SqlAlchemyInstrumentRepository(session))
 
 
+def get_market_status_use_case(
+    session: Session = Depends(get_db_session),
+) -> GetMarketStatusUseCase:
+    return GetMarketStatusUseCase(SqlAlchemyInstrumentRepository(session))
+
+
 def get_ohlcv_use_case(
     session: Session = Depends(get_db_session),
 ) -> GetOhlcvUseCase:
@@ -209,8 +227,28 @@ def get_predict_direction_use_case(
     from src.shared.infrastructure.cache import redis_client
 
     return PredictDirectionUseCase(
-        get_ohlcv_use_case(session), _direction_model, cache=redis_client
+        get_ohlcv_use_case(session),
+        _direction_model,
+        predictions=SqlAlchemyPredictionRepository(session),
+        cache=redis_client,
     )
+
+
+def _resolve_predictions_once() -> None:
+    session = SessionLocal()
+    try:
+        ResolvePredictionsUseCase(
+            SqlAlchemyPredictionRepository(session), get_ohlcv_use_case(session)
+        ).execute()
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+prediction_resolver_runner = PredictionResolverRunner(_resolve_predictions_once)
 
 
 def get_detect_smc_use_case(

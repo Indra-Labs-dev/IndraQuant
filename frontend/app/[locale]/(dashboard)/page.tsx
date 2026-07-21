@@ -1,13 +1,15 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CandlestickChart, type ChartType } from "@/components/charts/CandlestickChart";
 import { AppNav } from "@/components/layout/AppNav";
 import {
   getIndicators,
   getInstruments,
+  getMarketStatus,
   getOhlcv,
   getPatterns,
   getPrediction,
@@ -18,6 +20,7 @@ import type {
   Candle,
   DirectionPrediction,
   Instrument,
+  MarketStatus,
   PatternDetection,
   SmcDetection,
 } from "@/lib/api-client/types";
@@ -56,15 +59,21 @@ function fetchPatterns(instrumentId: number, timeframe: string) {
   return getPatterns(instrumentId, timeframe, from, to, 500);
 }
 
-function mergeCandles(existing: Candle[], incoming: Candle[]): Candle[] {
-  if (incoming.length === 0) return existing;
-  const byTime = new Map(existing.map((c) => [c.open_time, c]));
-  for (const candle of incoming) {
-    byTime.set(candle.open_time, candle);
-  }
-  return [...byTime.values()].sort((a, b) =>
-    a.open_time.localeCompare(b.open_time),
-  );
+/** Flashes green/red for a moment whenever the price ticks, fading back to
+ * the neutral text color — the classic trading-ticker cue. */
+function usePriceFlash(price: number | undefined): "up" | "down" | null {
+  const previousRef = useRef<number | undefined>(undefined);
+  const [flash, setFlash] = useState<"up" | "down" | null>(null);
+
+  useEffect(() => {
+    if (price === undefined) return;
+    if (previousRef.current !== undefined && price !== previousRef.current) {
+      setFlash(price > previousRef.current ? "up" : "down");
+    }
+    previousRef.current = price;
+  }, [price]);
+
+  return flash;
 }
 
 function fetchRsi(instrumentId: number, timeframe: string) {
@@ -88,12 +97,16 @@ export default function DashboardPage() {
   const [data, setData] = useState<{ key: string; candles: Candle[] } | null>(
     null,
   );
+  const [liveTick, setLiveTick] = useState<{ key: string; candle: Candle } | null>(
+    null,
+  );
   const [patterns, setPatterns] = useState<PatternDetection[]>([]);
   const [smc, setSmc] = useState<SmcDetection[]>([]);
   const [prediction, setPrediction] = useState<DirectionPrediction | null>(null);
   const [predicting, setPredicting] = useState(false);
   const [predictionError, setPredictionError] = useState(false);
   const [rsi, setRsi] = useState<number | null>(null);
+  const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [live, setLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,6 +116,7 @@ export default function DashboardPage() {
     [data, dataKey],
   );
   const loading = !error && data?.key !== dataKey;
+  const liveCandle = liveTick?.key === dataKey ? liveTick.candle : null;
 
   useEffect(() => {
     if (hydrated && !token) router.push("/login");
@@ -166,6 +180,23 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!token || !instrumentId) return;
+    let cancelled = false;
+    const refresh = () =>
+      getMarketStatus(instrumentId)
+        .then((status) => {
+          if (!cancelled) setMarketStatus(status);
+        })
+        .catch(() => {});
+    refresh();
+    const interval = setInterval(refresh, REFRESH_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [token, instrumentId]);
+
+  useEffect(() => {
+    if (!token || !instrumentId) return;
     const key = `${instrumentId}:${timeframe}`;
     const socket = new WebSocket(marketDataWsUrl(token));
     socket.onopen = () => {
@@ -184,11 +215,8 @@ export default function DashboardPage() {
         if (message.type !== "candles" || message.timeframe !== timeframe) {
           return;
         }
-        setData((current) =>
-          current?.key === key
-            ? { key, candles: mergeCandles(current.candles, message.candles) }
-            : current,
-        );
+        const latest = message.candles.at(-1);
+        if (latest) setLiveTick({ key, candle: latest });
       } catch {
         // Ignore malformed frames.
       }
@@ -209,7 +237,8 @@ export default function DashboardPage() {
     [candles, t],
   );
 
-  const lastPrice = candles.at(-1)?.close;
+  const lastPrice = liveCandle?.close ?? candles.at(-1)?.close;
+  const priceFlash = usePriceFlash(lastPrice);
   const selectClass =
     "rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm outline-none focus:border-white/30";
 
@@ -222,6 +251,20 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
           <div className="flex items-center gap-4 text-sm text-[var(--muted)]">
+            {marketStatus && !marketStatus.is_open && (
+              <span className="flex items-center gap-1.5 rounded-full border border-[var(--accent-orange)]/30 bg-[var(--accent-orange)]/10 px-2.5 py-1 text-[var(--accent-orange)]">
+                <span className="h-2 w-2 rounded-full bg-[var(--accent-orange)]" />
+                {t("marketClosed", {
+                  time: marketStatus.next_open
+                    ? new Date(marketStatus.next_open).toLocaleString("fr-FR", {
+                        weekday: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "—",
+                })}
+              </span>
+            )}
             {live && (
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--up)]" />
@@ -247,9 +290,22 @@ export default function DashboardPage() {
             {lastPrice !== undefined && (
               <span>
                 {t("lastPrice")} :{" "}
-                <span className="font-medium text-[var(--foreground)]">
+                <motion.span
+                  key={lastPrice}
+                  initial={{
+                    color:
+                      priceFlash === "up"
+                        ? "var(--up)"
+                        : priceFlash === "down"
+                          ? "var(--down)"
+                          : "var(--foreground)",
+                  }}
+                  animate={{ color: "var(--foreground)" }}
+                  transition={{ duration: 0.9, ease: "easeOut" }}
+                  className="font-medium"
+                >
                   {lastPrice.toLocaleString("fr-FR")}
-                </span>
+                </motion.span>
               </span>
             )}
           </div>
@@ -335,6 +391,7 @@ export default function DashboardPage() {
               overlays={overlays}
               chartType={chartType}
               fitKey={dataKey}
+              liveCandle={liveCandle}
             />
           )}
           {chartType === "area" && (
@@ -393,6 +450,41 @@ export default function DashboardPage() {
                 {(prediction.baseline_accuracy * 100).toFixed(1)} % —{" "}
                 {t("prediction.trainingRows")} : {prediction.training_rows}
               </p>
+              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs">
+                <p className="mb-1 font-medium text-[var(--muted)]">
+                  {t("prediction.selfLearning")}
+                </p>
+                <p className="text-[var(--muted)]">
+                  {t("prediction.rawConfidence")} :{" "}
+                  <span className="text-[var(--foreground)]">
+                    {(Math.max(prediction.raw_prob_up, 1 - prediction.raw_prob_up) * 100).toFixed(1)} %
+                  </span>
+                  {" → "}
+                  {t("prediction.calibratedConfidence")} :{" "}
+                  <span className="font-medium text-[var(--foreground)]">
+                    {(Math.max(prediction.prob_up, prediction.prob_down) * 100).toFixed(1)} %
+                  </span>
+                </p>
+                <p className="mt-1 text-[var(--muted)]">
+                  {prediction.track_record.bucket_accuracy !== null
+                    ? t("prediction.bucketStats", {
+                        n: prediction.track_record.bucket_resolved,
+                        accuracy: (
+                          prediction.track_record.bucket_accuracy * 100
+                        ).toFixed(1),
+                      })
+                    : t("prediction.noBucketHistory")}
+                </p>
+                <p className="text-[var(--muted)]">
+                  {t("prediction.overallStats", {
+                    n: prediction.track_record.overall_resolved,
+                    accuracy:
+                      prediction.track_record.overall_accuracy !== null
+                        ? (prediction.track_record.overall_accuracy * 100).toFixed(1)
+                        : "—",
+                  })}
+                </p>
+              </div>
               <div>
                 <p className="mb-1 text-xs font-medium text-[var(--muted)]">
                   {t("prediction.topFeatures")}
