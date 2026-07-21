@@ -89,7 +89,7 @@ export default function SettingsPage() {
           <button
             onClick={save}
             disabled={status === "saving"}
-            className="rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="brand-button rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {status === "saving" ? t("saving") : t("save")}
           </button>

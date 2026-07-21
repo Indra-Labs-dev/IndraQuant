@@ -9,5 +9,10 @@ redis
 ccxt
 PyJWT
 bcrypt
+xgboost
+shap
+scikit-learn
+pandas
+numpy
 pytest
 httpx

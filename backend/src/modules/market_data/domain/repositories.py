@@ -41,6 +41,10 @@ class CandleStore(Protocol):
         self, instrument_id: int, timeframe: Timeframe
     ) -> datetime | None: ...
 
+    def earliest_open_time(
+        self, instrument_id: int, timeframe: Timeframe
+    ) -> datetime | None: ...
+
     def upsert_many(
         self, instrument_id: int, timeframe: Timeframe, candles: list[Candle]
     ) -> int: ...

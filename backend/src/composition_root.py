@@ -8,6 +8,15 @@ from collections.abc import Iterator
 from fastapi import Depends, Header
 from sqlalchemy.orm import Session
 
+from src.modules.ai_assistant.application.use_cases.chat import ChatUseCase
+from src.modules.alert_center.application.use_cases.manage_alerts import (
+    CheckAlertsUseCase,
+    ManageAlertsUseCase,
+)
+from src.modules.alert_center.infrastructure.runner import AlertRunner
+from src.modules.alert_center.infrastructure.sqlalchemy_repository import (
+    SqlAlchemyAlertRepository,
+)
 from src.modules.auth.application.dto import UserProfile
 from src.modules.auth.application.use_cases.get_current_user import (
     GetCurrentUserUseCase,
@@ -28,18 +37,64 @@ from src.modules.market_data.application.use_cases.list_instruments import (
 from src.modules.market_data.infrastructure.ccxt_repository import (
     CcxtMarketDataRepository,
 )
+from src.modules.market_data.infrastructure.composite_repository import (
+    CompositeMarketDataRepository,
+)
+from src.modules.market_data.infrastructure.yfinance_repository import (
+    YFinanceMarketDataRepository,
+)
 from src.modules.market_data.infrastructure.sqlalchemy_repository import (
     ExchangeModel,
     InstrumentModel,
     SqlAlchemyCandleStore,
     SqlAlchemyInstrumentRepository,
 )
+from src.modules.backtesting.application.use_cases.run_backtest import (
+    RunBacktestUseCase,
+)
+from src.modules.backtesting.application.use_cases.walk_forward import (
+    WalkForwardUseCase,
+)
+from src.modules.backtesting.infrastructure.sqlalchemy_repository import (
+    SqlAlchemyBacktestRunRepository,
+)
+from src.modules.paper_trading.application.use_cases.manage_sessions import (
+    ManageSessionsUseCase,
+)
+from src.modules.paper_trading.application.use_cases.process_tick import (
+    ProcessTickUseCase,
+)
+from src.modules.news_intelligence.application.use_cases.get_news import (
+    GetNewsUseCase,
+)
+from src.modules.news_intelligence.infrastructure.rss_repository import (
+    RssNewsRepository,
+)
+from src.modules.paper_trading.infrastructure.runner import PaperTradingRunner
+from src.modules.sentiment_analysis.application.use_cases.analyze_news import (
+    AnalyzeNewsSentimentUseCase,
+)
+from src.modules.sentiment_analysis.infrastructure.ollama_client import OllamaClient
+from src.modules.paper_trading.infrastructure.sqlalchemy_repository import (
+    SqlAlchemyPaperTradingRepository,
+)
+from src.modules.machine_learning.infrastructure.direction_model import DirectionModel
+from src.modules.pattern_recognition.application.use_cases.detect_patterns import (
+    DetectPatternsUseCase,
+)
+from src.modules.prediction_engine.application.use_cases.predict_direction import (
+    PredictDirectionUseCase,
+)
+from src.modules.smart_money.application.use_cases.detect_smc import DetectSmcUseCase
 from src.modules.settings.application.use_cases.get_settings import GetSettingsUseCase
 from src.modules.settings.application.use_cases.update_setting import (
     UpdateSettingUseCase,
 )
 from src.modules.settings.infrastructure.sqlalchemy_repository import (
     SqlAlchemySettingsRepository,
+)
+from src.modules.technical_analysis.application.use_cases.compute_indicators import (
+    ComputeIndicatorsUseCase,
 )
 from src.shared.events.event_bus import event_bus
 from src.shared.infrastructure.config import settings
@@ -48,7 +103,12 @@ from src.shared.kernel.errors import UnauthorizedError
 
 password_hasher = BcryptPasswordHasher()
 token_provider = JwtTokenProvider(settings.jwt_secret, settings.jwt_expires_minutes)
-market_data_provider = CcxtMarketDataRepository()
+market_data_provider = CompositeMarketDataRepository(
+    {
+        "crypto": CcxtMarketDataRepository(),
+        "equity": YFinanceMarketDataRepository(),
+    }
+)
 
 
 def get_db_session() -> Iterator[Session]:
@@ -112,11 +172,160 @@ def get_ohlcv_use_case(
     )
 
 
-_SEED_EXCHANGE = ("binance", "Binance")
-_SEED_INSTRUMENTS = (
-    ("BTC/USDT", "BTC", "USDT"),
-    ("ETH/USDT", "ETH", "USDT"),
-    ("SOL/USDT", "SOL", "USDT"),
+def get_compute_indicators_use_case(
+    session: Session = Depends(get_db_session),
+) -> ComputeIndicatorsUseCase:
+    return ComputeIndicatorsUseCase(get_ohlcv_use_case(session))
+
+
+def get_detect_patterns_use_case(
+    session: Session = Depends(get_db_session),
+) -> DetectPatternsUseCase:
+    return DetectPatternsUseCase(get_ohlcv_use_case(session))
+
+
+_direction_model = DirectionModel()
+_news_repository = RssNewsRepository()
+_ollama_client = OllamaClient()
+
+
+def get_news_use_case() -> GetNewsUseCase:
+    from src.shared.infrastructure.cache import redis_client
+
+    return GetNewsUseCase(_news_repository, cache=redis_client)
+
+
+def get_analyze_sentiment_use_case() -> AnalyzeNewsSentimentUseCase:
+    from src.shared.infrastructure.cache import redis_client
+
+    return AnalyzeNewsSentimentUseCase(
+        get_news_use_case(), _ollama_client, cache=redis_client
+    )
+
+
+def get_predict_direction_use_case(
+    session: Session = Depends(get_db_session),
+) -> PredictDirectionUseCase:
+    from src.shared.infrastructure.cache import redis_client
+
+    return PredictDirectionUseCase(
+        get_ohlcv_use_case(session), _direction_model, cache=redis_client
+    )
+
+
+def get_detect_smc_use_case(
+    session: Session = Depends(get_db_session),
+) -> DetectSmcUseCase:
+    return DetectSmcUseCase(get_ohlcv_use_case(session))
+
+
+def get_chat_use_case(session: Session = Depends(get_db_session)) -> ChatUseCase:
+    return ChatUseCase(
+        get_list_instruments_use_case(session),
+        get_ohlcv_use_case(session),
+        _ollama_client.chat,
+    )
+
+
+def get_manage_alerts_use_case(
+    session: Session = Depends(get_db_session),
+) -> ManageAlertsUseCase:
+    return ManageAlertsUseCase(SqlAlchemyAlertRepository(session))
+
+
+def _check_alerts_once() -> None:
+    session = SessionLocal()
+    try:
+        CheckAlertsUseCase(
+            SqlAlchemyAlertRepository(session), get_ohlcv_use_case(session)
+        ).execute()
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+alert_runner = AlertRunner(_check_alerts_once)
+
+
+def get_run_backtest_use_case(
+    session: Session = Depends(get_db_session),
+) -> RunBacktestUseCase:
+    return RunBacktestUseCase(
+        get_ohlcv_use_case(session), SqlAlchemyBacktestRunRepository(session)
+    )
+
+
+def get_walk_forward_use_case(
+    session: Session = Depends(get_db_session),
+) -> WalkForwardUseCase:
+    return WalkForwardUseCase(get_ohlcv_use_case(session))
+
+
+def get_backtest_repository(
+    session: Session = Depends(get_db_session),
+) -> SqlAlchemyBacktestRunRepository:
+    return SqlAlchemyBacktestRunRepository(session)
+
+
+def get_manage_sessions_use_case(
+    session: Session = Depends(get_db_session),
+) -> ManageSessionsUseCase:
+    return ManageSessionsUseCase(
+        SqlAlchemyPaperTradingRepository(session), get_ohlcv_use_case(session)
+    )
+
+
+def _process_paper_tick(session_id: int) -> None:
+    session = SessionLocal()
+    try:
+        ProcessTickUseCase(
+            SqlAlchemyPaperTradingRepository(session), get_ohlcv_use_case(session)
+        ).execute(session_id)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+paper_trading_runner = PaperTradingRunner(_process_paper_tick)
+
+
+def resume_running_paper_sessions() -> None:
+    session = SessionLocal()
+    try:
+        repository = SqlAlchemyPaperTradingRepository(session)
+        for model in repository.list_sessions():
+            if model.status == "running":
+                paper_trading_runner.start(model.id, model.timeframe)
+    finally:
+        session.close()
+
+
+_SEED_EXCHANGES = (
+    # (ccxt_id/source_id, display_name, [(symbol, base, quote, asset_class)])
+    (
+        "binance",
+        "Binance",
+        (
+            ("BTC/USDT", "BTC", "USDT", "crypto"),
+            ("ETH/USDT", "ETH", "USDT", "crypto"),
+            ("SOL/USDT", "SOL", "USDT", "crypto"),
+        ),
+    ),
+    (
+        "yfinance",
+        "Yahoo Finance",
+        (
+            ("AAPL", "AAPL", "USD", "equity"),
+            ("MSFT", "MSFT", "USD", "equity"),
+            ("TSLA", "TSLA", "USD", "equity"),
+        ),
+    ),
 )
 _SEED_SETTINGS = (("language", "fr"), ("theme", "dark"))
 
@@ -143,32 +352,32 @@ def bootstrap() -> None:
             session.add(user)
             session.flush()
 
-        exchange = session.scalar(
-            select(ExchangeModel).where(ExchangeModel.ccxt_id == _SEED_EXCHANGE[0])
-        )
-        if exchange is None:
-            exchange = ExchangeModel(
-                ccxt_id=_SEED_EXCHANGE[0], display_name=_SEED_EXCHANGE[1]
+        for source_id, display_name, instruments in _SEED_EXCHANGES:
+            exchange = session.scalar(
+                select(ExchangeModel).where(ExchangeModel.ccxt_id == source_id)
             )
-            session.add(exchange)
-            session.flush()
+            if exchange is None:
+                exchange = ExchangeModel(ccxt_id=source_id, display_name=display_name)
+                session.add(exchange)
+                session.flush()
 
-        for symbol, base, quote in _SEED_INSTRUMENTS:
-            exists = session.scalar(
-                select(InstrumentModel).where(
-                    InstrumentModel.exchange_id == exchange.id,
-                    InstrumentModel.symbol == symbol,
-                )
-            )
-            if exists is None:
-                session.add(
-                    InstrumentModel(
-                        exchange_id=exchange.id,
-                        symbol=symbol,
-                        base_asset=base,
-                        quote_asset=quote,
+            for symbol, base, quote, asset_class in instruments:
+                exists = session.scalar(
+                    select(InstrumentModel).where(
+                        InstrumentModel.exchange_id == exchange.id,
+                        InstrumentModel.symbol == symbol,
                     )
                 )
+                if exists is None:
+                    session.add(
+                        InstrumentModel(
+                            exchange_id=exchange.id,
+                            symbol=symbol,
+                            base_asset=base,
+                            quote_asset=quote,
+                            asset_class=asset_class,
+                        )
+                    )
 
         existing_keys = {
             s.setting_key

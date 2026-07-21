@@ -157,6 +157,16 @@ class SqlAlchemyCandleStore:
             )
         )
 
+    def earliest_open_time(
+        self, instrument_id: int, timeframe: Timeframe
+    ) -> datetime | None:
+        return self._session.scalar(
+            select(func.min(OhlcvCandleModel.open_time)).where(
+                OhlcvCandleModel.instrument_id == instrument_id,
+                OhlcvCandleModel.timeframe == timeframe.value,
+            )
+        )
+
     def upsert_many(
         self, instrument_id: int, timeframe: Timeframe, candles: list[Candle]
     ) -> int:

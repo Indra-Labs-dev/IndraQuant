@@ -3,9 +3,14 @@ from decimal import Decimal
 
 import ccxt
 
+from src.modules.market_data.domain.aggregation import aggregate_candles
 from src.modules.market_data.domain.entities import Candle, Instrument
 from src.modules.market_data.domain.value_objects import Timeframe
 from src.shared.kernel.errors import AppError
+
+# Sub-minute timeframes not offered natively by exchanges are rebuilt from
+# 1s candles (ADR-015).
+_AGGREGATED_TIMEFRAMES = {"5s": 5, "30s": 30}
 
 
 class CcxtMarketDataRepository:
@@ -33,7 +38,19 @@ class CcxtMarketDataRepository:
         since: datetime,
         limit: int,
     ) -> list[Candle]:
+        bucket_seconds = _AGGREGATED_TIMEFRAMES.get(timeframe.value)
+        if bucket_seconds is not None:
+            fine = self.fetch_ohlcv(instrument, Timeframe("1s"), since, limit)
+            return aggregate_candles(fine, bucket_seconds)
+
         client = self._client(instrument.exchange_ccxt_id)
+        if client.timeframes and timeframe.value not in client.timeframes:
+            raise AppError(
+                "timeframe_unsupported",
+                f"L'exchange {instrument.exchange_ccxt_id} ne fournit pas "
+                f"le timeframe {timeframe.value}.",
+                http_status=422,
+            )
         since_ms = int(since.replace(tzinfo=timezone.utc).timestamp() * 1000)
         try:
             rows = client.fetch_ohlcv(

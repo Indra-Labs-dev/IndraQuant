@@ -38,6 +38,262 @@ export interface OhlcvResponse {
   candles: Candle[];
 }
 
+export interface IndicatorPoint {
+  time: string;
+  value: number;
+}
+
+export interface IndicatorsResponse {
+  instrument_id: number;
+  timeframe: string;
+  series: Record<string, IndicatorPoint[]>;
+}
+
+export interface PatternDetection {
+  pattern: string;
+  time: string;
+  direction: string;
+  confidence: number;
+  explanation: string;
+}
+
+export interface PatternsResponse {
+  instrument_id: number;
+  timeframe: string;
+  patterns: PatternDetection[];
+}
+
+export interface StrategySpec {
+  type: string;
+  fast: number;
+  slow: number;
+  period: number;
+  low: number;
+  high: number;
+}
+
+/** For outgoing requests: only the parameters relevant to the chosen
+ * strategy type need to be sent — the backend applies defaults for the
+ * rest (docs/10, Strategy Builder). */
+export type StrategySpecInput = { type: string } & Partial<
+  Omit<StrategySpec, "type">
+>;
+
+export interface TradeDto {
+  side: string;
+  time?: string;
+  executed_at?: string;
+  price: number;
+  quantity: number;
+  fee: number;
+  reason: string;
+}
+
+export interface EquityPoint {
+  time: string;
+  equity: number;
+}
+
+export interface BacktestReport {
+  id: number | null;
+  instrument_id: number;
+  timeframe: string;
+  strategy: StrategySpec;
+  initial_capital: number;
+  final_equity: number;
+  total_return: number;
+  max_drawdown: number;
+  sharpe: number | null;
+  win_rate: number | null;
+  trade_count: number;
+  trades: TradeDto[];
+  equity_curve: EquityPoint[];
+  explanation: string;
+}
+
+export interface BacktestSummary {
+  id: number;
+  instrument_id: number;
+  timeframe: string;
+  strategy: StrategySpec;
+  initial_capital: number;
+  final_equity: number;
+  total_return: number;
+  max_drawdown: number;
+  trade_count: number;
+  created_at: string;
+}
+
+export interface WalkForwardFold {
+  fold: number;
+  best_fast: number;
+  best_slow: number;
+  train_return: number;
+  test_return: number;
+}
+
+export interface WalkForwardReport {
+  instrument_id: number;
+  timeframe: string;
+  folds: WalkForwardFold[];
+  mean_test_return: number;
+  positive_test_folds: number;
+  total_folds: number;
+  explanation: string;
+}
+
+export interface PortfolioAnalytics {
+  equity: number;
+  cash: number;
+  position_quantity: number;
+  position_value: number;
+  pnl: number;
+  return_pct: number;
+  fees_paid: number;
+  trade_count: number;
+}
+
+export interface RiskReport {
+  var_95: number | null;
+  max_drawdown: number;
+  annualized_volatility: number | null;
+  explanation: string;
+}
+
+export interface PaperSession {
+  id: number;
+  instrument_id: number;
+  timeframe: string;
+  strategy: StrategySpec;
+  initial_capital: number;
+  status: string;
+  started_at: string;
+  stopped_at: string | null;
+}
+
+export interface PaperSessionDetail extends PaperSession {
+  trades: TradeDto[];
+  analytics: PortfolioAnalytics;
+  risk: RiskReport;
+}
+
+export interface FeatureContribution {
+  feature: string;
+  value: number;
+  contribution: number;
+}
+
+export interface ModelScore {
+  name: string;
+  prob_up: number;
+  test_accuracy: number;
+}
+
+export interface DirectionPrediction {
+  instrument_id: number;
+  timeframe: string;
+  as_of: string;
+  horizon_candles: number;
+  prob_up: number;
+  prob_down: number;
+  models: ModelScore[];
+  test_accuracy: number;
+  baseline_accuracy: number;
+  training_rows: number;
+  top_features: FeatureContribution[];
+  explanation: string;
+}
+
+export interface SmcDetection {
+  kind: string;
+  time: string;
+  direction: string;
+  confidence: number;
+  explanation: string;
+}
+
+export interface SmcResponse {
+  instrument_id: number;
+  timeframe: string;
+  detections: SmcDetection[];
+}
+
+export interface NewsItem {
+  source: string;
+  title: string;
+  link: string;
+  published_at: string | null;
+}
+
+export interface HeadlineSentiment extends NewsItem {
+  sentiment: string;
+  score: number;
+  rationale: string;
+}
+
+export interface SentimentResponse {
+  items: HeadlineSentiment[];
+  average_score: number;
+  model: string;
+  explanation: string;
+}
+
+export interface CalendarEvent {
+  date: string;
+  name: string;
+  importance: string;
+  note: string;
+}
+
+export interface CalendarResponse {
+  events: CalendarEvent[];
+  source_note: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+  model: string;
+  context_note: string;
+}
+
+export interface StrategyParameter {
+  name: string;
+  label: string;
+  default: number;
+  min: number;
+  max: number;
+}
+
+export interface StrategyDefinition {
+  type: string;
+  label: string;
+  description: string;
+  parameters: StrategyParameter[];
+}
+
+export type AlertConditionType =
+  | "price_above"
+  | "price_below"
+  | "rsi_above"
+  | "rsi_below";
+
+export interface Alert {
+  id: number;
+  instrument_id: number;
+  timeframe: string;
+  condition_type: AlertConditionType;
+  threshold: number;
+  is_active: boolean;
+  message: string | null;
+  created_at: string;
+  triggered_at: string | null;
+}
+
 export interface ApiError {
   error: { code: string; message: string };
 }

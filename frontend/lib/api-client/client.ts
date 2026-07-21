@@ -1,11 +1,21 @@
 import { useAuthStore } from "@/lib/stores/auth";
 
 import type {
+  BacktestReport,
+  DirectionPrediction,
+  SmcResponse,
+  BacktestSummary,
+  IndicatorsResponse,
   InstrumentsResponse,
   LoginResponse,
   OhlcvResponse,
+  PaperSession,
+  PaperSessionDetail,
+  PatternsResponse,
   SettingsResponse,
+  StrategySpecInput,
   UserProfile,
+  WalkForwardReport,
 } from "./types";
 
 const BASE_URL =
@@ -77,6 +87,176 @@ export function updateSetting(
 
 export function getInstruments(): Promise<InstrumentsResponse> {
   return request("/instruments");
+}
+
+export function marketDataWsUrl(token: string): string {
+  return `${BASE_URL.replace(/^http/, "ws")}/ws/market-data?token=${encodeURIComponent(token)}`;
+}
+
+export function getIndicators(
+  instrumentId: number,
+  timeframe: string,
+  from: Date,
+  to: Date,
+  indicators: string,
+  limit = 500,
+): Promise<IndicatorsResponse> {
+  const params = new URLSearchParams({
+    timeframe,
+    from: from.toISOString(),
+    to: to.toISOString(),
+    indicators,
+    limit: String(limit),
+  });
+  return request(`/instruments/${instrumentId}/indicators?${params}`);
+}
+
+export function getPatterns(
+  instrumentId: number,
+  timeframe: string,
+  from: Date,
+  to: Date,
+  limit = 500,
+): Promise<PatternsResponse> {
+  const params = new URLSearchParams({
+    timeframe,
+    from: from.toISOString(),
+    to: to.toISOString(),
+    limit: String(limit),
+  });
+  return request(`/instruments/${instrumentId}/patterns?${params}`);
+}
+
+export interface BacktestParams {
+  instrument_id: number;
+  timeframe: string;
+  from: Date;
+  to: Date;
+  strategy: StrategySpecInput;
+  initial_capital: number;
+}
+
+export function runBacktest(params: BacktestParams): Promise<BacktestReport> {
+  return request("/backtests", {
+    method: "POST",
+    body: JSON.stringify({
+      ...params,
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+    }),
+  });
+}
+
+export function listBacktests(): Promise<{ backtests: BacktestSummary[] }> {
+  return request("/backtests");
+}
+
+export function runWalkForward(
+  params: BacktestParams & { folds: number },
+): Promise<WalkForwardReport> {
+  return request("/backtests/walk-forward", {
+    method: "POST",
+    body: JSON.stringify({
+      ...params,
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+    }),
+  });
+}
+
+export function createPaperSession(params: {
+  instrument_id: number;
+  timeframe: string;
+  strategy: StrategySpecInput;
+  initial_capital: number;
+}): Promise<PaperSession> {
+  return request("/paper-trading/sessions", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export function listPaperSessions(): Promise<{ sessions: PaperSession[] }> {
+  return request("/paper-trading/sessions");
+}
+
+export function getPaperSession(id: number): Promise<PaperSessionDetail> {
+  return request(`/paper-trading/sessions/${id}`);
+}
+
+export function stopPaperSession(id: number): Promise<PaperSession> {
+  return request(`/paper-trading/sessions/${id}/stop`, { method: "POST" });
+}
+
+export function getPrediction(
+  instrumentId: number,
+  timeframe: string,
+): Promise<DirectionPrediction> {
+  const params = new URLSearchParams({ timeframe });
+  return request(`/instruments/${instrumentId}/prediction?${params}`);
+}
+
+export function getSmc(
+  instrumentId: number,
+  timeframe: string,
+  from: Date,
+  to: Date,
+  limit = 500,
+): Promise<SmcResponse> {
+  const params = new URLSearchParams({
+    timeframe,
+    from: from.toISOString(),
+    to: to.toISOString(),
+    limit: String(limit),
+  });
+  return request(`/instruments/${instrumentId}/smc?${params}`);
+}
+
+export function getNews(limit = 20): Promise<{ items: import("./types").NewsItem[] }> {
+  return request(`/news?limit=${limit}`);
+}
+
+export function getNewsSentiment(
+  limit = 8,
+): Promise<import("./types").SentimentResponse> {
+  return request(`/news/sentiment?limit=${limit}`);
+}
+
+export function getCalendarEvents(): Promise<import("./types").CalendarResponse> {
+  return request("/calendar/events");
+}
+
+export function chatWithAssistant(
+  message: string,
+  history: import("./types").ChatMessage[],
+): Promise<import("./types").ChatResponse> {
+  return request("/assistant/chat", {
+    method: "POST",
+    body: JSON.stringify({ message, history }),
+  });
+}
+
+export function listStrategies(): Promise<{
+  strategies: import("./types").StrategyDefinition[];
+}> {
+  return request("/strategies");
+}
+
+export function createAlert(params: {
+  instrument_id: number;
+  timeframe: string;
+  condition_type: import("./types").AlertConditionType;
+  threshold: number;
+}): Promise<import("./types").Alert> {
+  return request("/alerts", { method: "POST", body: JSON.stringify(params) });
+}
+
+export function listAlerts(): Promise<{ alerts: import("./types").Alert[] }> {
+  return request("/alerts");
+}
+
+export function deleteAlert(id: number): Promise<{ status: string }> {
+  return request(`/alerts/${id}`, { method: "DELETE" });
 }
 
 export function getOhlcv(

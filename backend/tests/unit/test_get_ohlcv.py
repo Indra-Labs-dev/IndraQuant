@@ -61,6 +61,9 @@ class FakeStore:
     def latest_open_time(self, instrument_id, timeframe):
         return max((c.open_time for c in self.candles), default=None)
 
+    def earliest_open_time(self, instrument_id, timeframe):
+        return min((c.open_time for c in self.candles), default=None)
+
     def upsert_many(self, instrument_id, timeframe, candles):
         existing = {c.open_time for c in self.candles}
         self.candles.extend(c for c in candles if c.open_time not in existing)
@@ -104,7 +107,10 @@ def test_fetch_resumes_from_latest_stored_candle():
 
 
 def test_no_fetch_when_storage_already_covers_range():
-    store = FakeStore([candle(datetime(2026, 1, 2))])
+    store = FakeStore(
+        [candle(datetime(2026, 1, 1, h)) for h in range(24)]
+        + [candle(datetime(2026, 1, 2))]
+    )
     provider = FakeProvider([])
 
     make_use_case(provider, store).execute(

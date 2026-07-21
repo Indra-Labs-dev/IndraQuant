@@ -86,25 +86,18 @@ class GetOhlcvUseCase:
     def _ingest_missing(self, instrument, timeframe, start, end) -> None:
         now = _to_naive_utc(self._clock.now(timezone.utc))
         latest = self._store.latest_open_time(instrument.id, timeframe)
+        earliest = self._store.earliest_open_time(instrument.id, timeframe)
+
+        total = 0
+        if earliest is not None and start < earliest:
+            # Backfill history older than what is stored.
+            total += self._fetch_range(instrument, timeframe, start, earliest)
 
         # Refetch from the latest stored candle (it may have been partial
         # when first ingested); from `start` when storage is empty.
-        fetch_since = start if latest is None else latest
-        if fetch_since >= min(end, now):
-            return
-
-        total = 0
-        for _ in range(_MAX_FETCH_PAGES):
-            batch = self._provider.fetch_ohlcv(
-                instrument, timeframe, fetch_since, _FETCH_PAGE_SIZE
-            )
-            if not batch:
-                break
-            total += self._store.upsert_many(instrument.id, timeframe, batch)
-            last_open = batch[-1].open_time
-            if last_open >= end or len(batch) < _FETCH_PAGE_SIZE:
-                break
-            fetch_since = last_open
+        forward_since = start if latest is None else latest
+        if forward_since < min(end, now):
+            total += self._fetch_range(instrument, timeframe, forward_since, end)
 
         if total:
             self._events.publish(
@@ -115,3 +108,18 @@ class GetOhlcvUseCase:
                     ingested_at=now,
                 )
             )
+
+    def _fetch_range(self, instrument, timeframe, since, until) -> int:
+        total = 0
+        for _ in range(_MAX_FETCH_PAGES):
+            batch = self._provider.fetch_ohlcv(
+                instrument, timeframe, since, _FETCH_PAGE_SIZE
+            )
+            if not batch:
+                break
+            total += self._store.upsert_many(instrument.id, timeframe, batch)
+            last_open = batch[-1].open_time
+            if last_open >= until or len(batch) < _FETCH_PAGE_SIZE:
+                break
+            since = last_open
+        return total

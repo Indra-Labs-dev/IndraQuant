@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import Image from "next/image";
 import { FormEvent, useState } from "react";
 
 import { ApiRequestError, login } from "@/lib/api-client/client";
@@ -42,9 +43,22 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-5">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-          <p className="text-sm text-[var(--muted)]">{t("subtitle")}</p>
+        <div className="space-y-3 text-center">
+          <Image
+            src="/logo-emblem.png"
+            alt="IndraQuant"
+            width={72}
+            height={72}
+            priority
+            className="mx-auto"
+          />
+          <h1 className="brand-gradient-text text-3xl font-semibold tracking-tight">
+            IndraQuant
+          </h1>
+          <div className="space-y-1">
+            <h2 className="text-xl font-medium">{t("title")}</h2>
+            <p className="text-sm text-[var(--muted)]">{t("subtitle")}</p>
+          </div>
         </div>
 
         <label className="block space-y-1.5">
@@ -76,7 +90,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg bg-white/90 px-4 py-2.5 text-sm font-medium text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="brand-button w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {submitting ? t("submitting") : t("submit")}
         </button>
