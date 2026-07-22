@@ -27,6 +27,20 @@ class PredictionTrackRecord(BaseModel):
     overall_accuracy: float | None
 
 
+class PriceTargetEstimate(BaseModel):
+    """Probabilistic price projection (ADR-025) — never a single number:
+    an expected price plus a low/high interval at a stated confidence,
+    grounded in the regressor's own historical error on held-out data."""
+
+    current_price: float
+    expected_price: float
+    low_price: float
+    high_price: float
+    confidence: float
+    test_error_pct: float
+    explanation: str
+
+
 class DirectionPrediction(BaseModel):
     instrument_id: int
     timeframe: str
@@ -41,4 +55,5 @@ class DirectionPrediction(BaseModel):
     training_rows: int
     top_features: list[FeatureContribution]
     track_record: PredictionTrackRecord
+    price_target: PriceTargetEstimate
     explanation: str

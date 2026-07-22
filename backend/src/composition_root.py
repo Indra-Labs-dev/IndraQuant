@@ -82,6 +82,9 @@ from src.modules.paper_trading.infrastructure.sqlalchemy_repository import (
     SqlAlchemyPaperTradingRepository,
 )
 from src.modules.machine_learning.infrastructure.direction_model import DirectionModel
+from src.modules.machine_learning.infrastructure.price_target_model import (
+    PriceTargetModel,
+)
 from src.modules.pattern_recognition.application.use_cases.detect_patterns import (
     DetectPatternsUseCase,
 )
@@ -210,6 +213,7 @@ def get_detect_patterns_use_case(
 
 
 _direction_model = DirectionModel()
+_price_target_model = PriceTargetModel()
 _news_repository = RssNewsRepository()
 _ollama_client = OllamaClient()
 
@@ -236,6 +240,7 @@ def get_predict_direction_use_case(
     return PredictDirectionUseCase(
         get_ohlcv_use_case(session),
         _direction_model,
+        price_target_model=_price_target_model,
         predictions=SqlAlchemyPredictionRepository(session),
         cache=redis_client,
     )

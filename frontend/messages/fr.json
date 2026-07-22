@@ -214,6 +214,8 @@
       "baseline": "Référence naïve",
       "trainingRows": "Bougies d'entraînement",
       "topFeatures": "Facteurs les plus influents (SHAP)",
+      "priceTargetTitle": "Estimation de prix",
+      "priceTargetConfidence": "confiance {confidence} %",
       "selfLearning": "Auto-apprentissage",
       "rawConfidence": "Confiance brute",
       "calibratedConfidence": "Confiance recalibrée",

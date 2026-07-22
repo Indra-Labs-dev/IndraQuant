@@ -47,11 +47,14 @@ class DirectionModel:
             subsample=0.9,
             colsample_bytree=0.9,
             eval_metric="logloss",
+            random_state=42,
         )
         xgb.fit(X_train, y_train)
         xgb_acc = float((xgb.predict(X_test) == y_test).mean())
 
-        logistic = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000))
+        logistic = make_pipeline(
+            StandardScaler(), LogisticRegression(max_iter=1000, random_state=42)
+        )
         logistic.fit(X_train, y_train)
         log_acc = float((logistic.predict(X_test) == y_test).mean())
 

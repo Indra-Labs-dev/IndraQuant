@@ -198,6 +198,16 @@ export interface PredictionTrackRecord {
   overall_accuracy: number | null;
 }
 
+export interface PriceTargetEstimate {
+  current_price: number;
+  expected_price: number;
+  low_price: number;
+  high_price: number;
+  confidence: number;
+  test_error_pct: number;
+  explanation: string;
+}
+
 export interface DirectionPrediction {
   instrument_id: number;
   timeframe: string;
@@ -212,6 +222,7 @@ export interface DirectionPrediction {
   training_rows: number;
   top_features: FeatureContribution[];
   track_record: PredictionTrackRecord;
+  price_target: PriceTargetEstimate;
   explanation: string;
 }
 

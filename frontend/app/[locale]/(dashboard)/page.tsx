@@ -443,6 +443,41 @@ export default function DashboardPage() {
                   style={{ width: `${prediction.prob_up * 100}%` }}
                 />
               </div>
+              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs">
+                <p className="mb-2 flex flex-wrap items-baseline justify-between gap-2 font-medium text-[var(--muted)]">
+                  <span>{t("prediction.priceTargetTitle")}</span>
+                  <span className="text-[var(--foreground)]">
+                    {prediction.price_target.expected_price.toLocaleString("fr-FR")}
+                  </span>
+                </p>
+                <div className="relative h-2 w-full rounded-full bg-white/5">
+                  <div className="absolute inset-y-0 left-0 right-0 rounded-full bg-gradient-to-r from-[var(--down)] via-white/10 to-[var(--up)]" />
+                  <div
+                    className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--background)] bg-[var(--accent-violet)]"
+                    style={{
+                      left: `${
+                        ((prediction.price_target.expected_price -
+                          prediction.price_target.low_price) /
+                          (prediction.price_target.high_price -
+                            prediction.price_target.low_price || 1)) *
+                        100
+                      }%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-2 flex justify-between text-[var(--muted)]">
+                  <span>{prediction.price_target.low_price.toLocaleString("fr-FR")}</span>
+                  <span>
+                    {t("prediction.priceTargetConfidence", {
+                      confidence: (prediction.price_target.confidence * 100).toFixed(0),
+                    })}
+                  </span>
+                  <span>{prediction.price_target.high_price.toLocaleString("fr-FR")}</span>
+                </p>
+                <p className="mt-2 text-[var(--muted)]">
+                  {prediction.price_target.explanation}
+                </p>
+              </div>
               <p className="text-xs text-[var(--muted)]">
                 {t("prediction.quality")} :{" "}
                 {(prediction.test_accuracy * 100).toFixed(1)} % —{" "}

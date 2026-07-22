@@ -1,4 +1,5 @@
 import json
+import math
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -7,6 +8,7 @@ from src.modules.machine_learning.application.dto import (
     FeatureContribution,
     ModelScore,
     PredictionTrackRecord,
+    PriceTargetEstimate,
 )
 from src.modules.machine_learning.domain.calibration import (
     blend_calibration,
@@ -14,6 +16,9 @@ from src.modules.machine_learning.domain.calibration import (
 )
 from src.modules.machine_learning.domain.features import FEATURE_NAMES, build_features
 from src.modules.machine_learning.infrastructure.direction_model import DirectionModel
+from src.modules.machine_learning.infrastructure.price_target_model import (
+    PriceTargetModel,
+)
 from src.modules.prediction_engine.infrastructure.sqlalchemy_repository import (
     PredictionModel,
     SqlAlchemyPredictionRepository,
@@ -27,7 +32,10 @@ _TIMEFRAME_SECONDS = {
 }
 _TRAINING_CANDLES = 1500
 _MIN_ROWS = 200
-_CACHE_TTL_SECONDS = 60
+# Cache hygiene only — correctness comes from the cache key including
+# `as_of`, so a newly-closed candle always misses regardless of this TTL.
+_CACHE_MIN_TTL_SECONDS = 300
+_CACHE_MAX_TTL_SECONDS = 21_600
 
 
 def _naive(dt: datetime) -> datetime:
@@ -44,16 +52,31 @@ class PredictDirectionUseCase:
         self,
         ohlcv: OhlcvProvider,
         model: DirectionModel,
+        price_target_model: PriceTargetModel | None = None,
         predictions: SqlAlchemyPredictionRepository | None = None,
         cache=None,
     ) -> None:
         self._ohlcv = ohlcv
         self._model = model
+        self._price_target_model = price_target_model or PriceTargetModel()
         self._predictions = predictions
         self._cache = cache
 
     def execute(self, instrument_id: int, timeframe: str) -> DirectionPrediction:
-        cache_key = f"prediction:{instrument_id}:{timeframe}"
+        seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(seconds=seconds * _TRAINING_CANDLES)
+        response = self._ohlcv.execute(instrument_id, timeframe, start, end, 5000)
+
+        # Keying the cache on the actual last-closed candle (rather than a
+        # fixed time window) means a request is only ever served a stale
+        # answer for as long as the candle itself hasn't changed — the
+        # instant a new candle closes, this key changes and a fresh,
+        # deterministic prediction is trained (see ADR-026).
+        cache_key = (
+            f"prediction:{instrument_id}:{timeframe}:"
+            f"{response.candles[-1].open_time.isoformat() if response.candles else 'none'}"
+        )
         if self._cache is not None:
             try:
                 cached = self._cache.get(cache_key)
@@ -62,14 +85,9 @@ class PredictDirectionUseCase:
             except Exception:
                 pass
 
-        seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
-        end = datetime.now(timezone.utc)
-        start = end - timedelta(seconds=seconds * _TRAINING_CANDLES)
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, 5000)
-
         closes = [c.close for c in response.candles]
         volumes = [c.volume for c in response.candles]
-        rows, labels, latest = build_features(closes, volumes)
+        rows, labels, returns, latest = build_features(closes, volumes)
         if len(rows) < _MIN_ROWS or latest is None:
             raise AppError(
                 "not_enough_data",
@@ -79,6 +97,7 @@ class PredictDirectionUseCase:
             )
 
         trained = self._model.train_predict(rows, labels, latest)
+        price_trained = self._price_target_model.train_predict(rows, returns, latest)
 
         contributions = sorted(
             (
@@ -146,6 +165,28 @@ class PredictDirectionUseCase:
             "fil des prochaines bougies résolues."
         )
 
+        current_price = closes[-1]
+        expected_price = current_price * math.exp(price_trained.expected_return)
+        low_price = current_price * math.exp(price_trained.low_return)
+        high_price = current_price * math.exp(price_trained.high_return)
+        price_target = PriceTargetEstimate(
+            current_price=round(current_price, 8),
+            expected_price=round(expected_price, 8),
+            low_price=round(min(low_price, high_price), 8),
+            high_price=round(max(low_price, high_price), 8),
+            confidence=price_trained.confidence,
+            test_error_pct=round(price_trained.test_mae * 100, 3),
+            explanation=(
+                f"Projection statistique (régression XGBoost sur le même jeu de "
+                f"variables), pas une garantie : prix actuel {current_price:.2f} → "
+                f"estimé {expected_price:.2f}, intervalle {min(low_price, high_price):.2f} – "
+                f"{max(low_price, high_price):.2f} à {price_trained.confidence * 100:.0f} % "
+                f"de confiance. Intervalle construit à partir de l'erreur réellement "
+                f"observée du modèle sur les données de test (erreur moyenne "
+                f"{price_trained.test_mae * 100:.2f} %), pas d'une hypothèse théorique."
+            ),
+        )
+
         prediction = DirectionPrediction(
             instrument_id=instrument_id,
             timeframe=response.timeframe,
@@ -160,6 +201,7 @@ class PredictDirectionUseCase:
             training_rows=trained.training_rows,
             top_features=contributions,
             track_record=track_record,
+            price_target=price_target,
             explanation=(
                 f"Tendance {direction} estimée à {probability * 100:.1f} % pour la "
                 f"prochaine bougie {response.timeframe} (ensemble XGBoost + "
@@ -173,11 +215,8 @@ class PredictDirectionUseCase:
 
         if self._cache is not None:
             try:
-                self._cache.set(
-                    cache_key,
-                    prediction.model_dump_json(),
-                    ex=_CACHE_TTL_SECONDS,
-                )
+                ttl = min(max(seconds * 2, _CACHE_MIN_TTL_SECONDS), _CACHE_MAX_TTL_SECONDS)
+                self._cache.set(cache_key, prediction.model_dump_json(), ex=ttl)
             except Exception:
                 pass
         return prediction
