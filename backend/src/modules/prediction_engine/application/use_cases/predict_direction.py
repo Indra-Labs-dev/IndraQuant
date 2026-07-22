@@ -1,5 +1,6 @@
 import json
 import math
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -96,8 +97,18 @@ class PredictDirectionUseCase:
                 422,
             )
 
-        trained = self._model.train_predict(rows, labels, latest)
-        price_trained = self._price_target_model.train_predict(rows, returns, latest)
+        # Direction and price-target are independent models over the same
+        # inputs — train them concurrently to use more of the machine's
+        # cores instead of one after the other (ADR-027).
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            direction_future = executor.submit(
+                self._model.train_predict, rows, labels, latest
+            )
+            price_future = executor.submit(
+                self._price_target_model.train_predict, rows, returns, latest
+            )
+            trained = direction_future.result()
+            price_trained = price_future.result()
 
         contributions = sorted(
             (

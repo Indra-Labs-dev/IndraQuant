@@ -45,6 +45,7 @@ class PriceTargetModel:
             subsample=0.9,
             colsample_bytree=0.9,
             random_state=42,
+            n_jobs=-1,
         )
         model.fit(X_train, y_train)
 

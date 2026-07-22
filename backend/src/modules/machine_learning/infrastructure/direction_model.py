@@ -3,6 +3,7 @@ SHAP attribution for the XGBoost member (ADR-017). Infrastructure layer:
 this is the only file that knows the ML libraries.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 import numpy as np
@@ -48,14 +49,22 @@ class DirectionModel:
             colsample_bytree=0.9,
             eval_metric="logloss",
             random_state=42,
+            n_jobs=-1,
         )
-        xgb.fit(X_train, y_train)
-        xgb_acc = float((xgb.predict(X_test) == y_test).mean())
-
         logistic = make_pipeline(
             StandardScaler(), LogisticRegression(max_iter=1000, random_state=42)
         )
-        logistic.fit(X_train, y_train)
+
+        # The two members are independent — fitting them concurrently uses
+        # more of the machine's cores instead of training one after the
+        # other (ADR-027).
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            xgb_future = executor.submit(xgb.fit, X_train, y_train)
+            logistic_future = executor.submit(logistic.fit, X_train, y_train)
+            xgb_future.result()
+            logistic_future.result()
+
+        xgb_acc = float((xgb.predict(X_test) == y_test).mean())
         log_acc = float((logistic.predict(X_test) == y_test).mean())
 
         xgb_prob = float(xgb.predict_proba(latest)[0, 1])

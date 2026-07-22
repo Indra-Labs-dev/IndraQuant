@@ -26,6 +26,8 @@ import { useAuthHydrated, useAuthStore } from "@/lib/stores/auth";
 const TIMEFRAMES = ["1s", "5s", "30s", "1m", "5m", "15m", "1h", "4h", "1d"];
 const REFRESH_INTERVAL_MS = 30_000;
 const PRIORITY_SETTING_KEY = "training_priority_instruments";
+const RECENT_FETCH_LIMIT = 300;
+const RECENT_PAGE_SIZE = 20;
 
 function pct(value: number | null): string {
   return value === null ? "—" : `${(value * 100).toFixed(1)} %`;
@@ -46,6 +48,7 @@ export default function TrainingPage() {
   const [priorityLoaded, setPriorityLoaded] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState(false);
+  const [recentPage, setRecentPage] = useState(0);
 
   useEffect(() => {
     if (hydrated && !token) router.push("/login");
@@ -101,7 +104,7 @@ export default function TrainingPage() {
       getPredictionDashboard(
         timeframe,
         instrumentId === "all" ? undefined : instrumentId,
-        150,
+        RECENT_FETCH_LIMIT,
       )
         .then((d) => {
           if (!cancelled) {
@@ -137,6 +140,16 @@ export default function TrainingPage() {
     };
   }, [token]);
 
+  // Reset pagination when the underlying dataset changes — adjusting state
+  // during render (not in an effect) per React's guidance for this exact
+  // "reset on prop change" case.
+  const recentFilterKey = `${timeframe}:${instrumentId}`;
+  const [lastRecentFilterKey, setLastRecentFilterKey] = useState(recentFilterKey);
+  if (recentFilterKey !== lastRecentFilterKey) {
+    setLastRecentFilterKey(recentFilterKey);
+    setRecentPage(0);
+  }
+
   const priorityList = [...priorityIds];
   const runningPriorityCount = sessions.filter(
     (s) => s.timeframe === timeframe && priorityIds.has(s.instrument_id),
@@ -154,6 +167,14 @@ export default function TrainingPage() {
       .catch(() => setError(true))
       .finally(() => setToggling(false));
   };
+
+  const recentTotal = dashboard?.recent.length ?? 0;
+  const recentPageCount = Math.max(1, Math.ceil(recentTotal / RECENT_PAGE_SIZE));
+  const recentPageClamped = Math.min(recentPage, recentPageCount - 1);
+  const recentPageRows = (dashboard?.recent ?? []).slice(
+    recentPageClamped * RECENT_PAGE_SIZE,
+    (recentPageClamped + 1) * RECENT_PAGE_SIZE,
+  );
 
   const cryptoInstruments = instruments.filter((i) => i.asset_class === "crypto");
   const equityInstruments = instruments.filter((i) => i.asset_class === "equity");
@@ -347,10 +368,38 @@ export default function TrainingPage() {
         </section>
 
         <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-          <h2 className="mb-3 text-sm font-medium text-[var(--muted)]">
-            {t("recentTitle")}
-          </h2>
-          {!dashboard || dashboard.recent.length === 0 ? (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-medium text-[var(--muted)]">
+              {t("recentTitle")}
+            </h2>
+            {recentTotal > 0 && (
+              <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                <button
+                  onClick={() => setRecentPage((p) => Math.max(0, p - 1))}
+                  disabled={recentPageClamped === 0}
+                  className="rounded-md border border-white/10 px-2 py-1 transition-colors hover:text-[var(--foreground)] disabled:opacity-30"
+                >
+                  {t("previousPage")}
+                </button>
+                <span>
+                  {t("pageIndicator", {
+                    page: recentPageClamped + 1,
+                    total: recentPageCount,
+                  })}
+                </span>
+                <button
+                  onClick={() =>
+                    setRecentPage((p) => Math.min(recentPageCount - 1, p + 1))
+                  }
+                  disabled={recentPageClamped >= recentPageCount - 1}
+                  className="rounded-md border border-white/10 px-2 py-1 transition-colors hover:text-[var(--foreground)] disabled:opacity-30"
+                >
+                  {t("nextPage")}
+                </button>
+              </div>
+            )}
+          </div>
+          {!dashboard || recentTotal === 0 ? (
             <p className="text-sm text-[var(--muted)]">{t("noData")}</p>
           ) : (
             <div className="overflow-x-auto">
@@ -365,7 +414,7 @@ export default function TrainingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {dashboard.recent.map((r) => (
+                  {recentPageRows.map((r) => (
                     <tr key={r.id} className="border-t border-white/5">
                       <td className="py-1.5 pr-4">{r.symbol}</td>
                       <td className="py-1.5 pr-4 text-[var(--muted)]">
