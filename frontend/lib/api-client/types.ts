@@ -313,6 +313,59 @@ export interface MarketStatus {
   next_close: string | null;
 }
 
+export interface PredictionRecord {
+  id: number;
+  instrument_id: number;
+  symbol: string;
+  timeframe: string;
+  as_of: string;
+  target_time: string;
+  predicted_direction: "up" | "down";
+  raw_prob_up: number;
+  actual_direction: "up" | "down" | null;
+  correct: boolean | null;
+  resolved_at: string | null;
+}
+
+export interface CalibrationBucket {
+  low: number;
+  high: number;
+  n: number;
+  accuracy: number | null;
+}
+
+export interface AccuracyTrendPoint {
+  index: number;
+  resolved_at: string;
+  rolling_accuracy: number;
+  sample_size: number;
+}
+
+export interface TimeframeSummary {
+  timeframe: string;
+  resolved: number;
+  pending: number;
+  accuracy: number | null;
+}
+
+export interface PredictionDashboard {
+  timeframe: string;
+  summary: TimeframeSummary[];
+  calibration: CalibrationBucket[];
+  accuracy_trend: AccuracyTrendPoint[];
+  recent: PredictionRecord[];
+}
+
+export interface TrainingSessionInfo {
+  instrument_id: number;
+  symbol: string;
+  timeframe: string;
+}
+
+export interface TrainingSessionsResponse {
+  sessions: TrainingSessionInfo[];
+}
+
 export interface ApiError {
   error: { code: string; message: string };
 }

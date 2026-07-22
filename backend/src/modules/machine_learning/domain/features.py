@@ -1,7 +1,10 @@
-"""Feature matrix construction for direction models. Pure logic on float
-series (uses the feature_engineering public facade). Row i describes candle
-i; the label is the direction of candle i+1.
+"""Feature matrix construction for direction and price-target models. Pure
+logic on float series (uses the feature_engineering public facade). Row i
+describes candle i; the label/return describes the move from candle i to
+candle i+1.
 """
+
+import math
 
 from src.modules.feature_engineering.application import service as fe
 
@@ -19,10 +22,12 @@ FEATURE_NAMES = [
 
 def build_features(
     closes: list[float], volumes: list[float]
-) -> tuple[list[list[float]], list[int], list[float] | None]:
-    """Returns (rows, labels, latest_row). Rows only include indices where
-    every feature and the label are defined; latest_row is the most recent
-    fully-defined feature vector (whose label is still unknown)."""
+) -> tuple[list[list[float]], list[int], list[float], list[float] | None]:
+    """Returns (rows, labels, log_returns, latest_row). Rows only include
+    indices where every feature and the label are defined; `log_returns[i]`
+    is the log-return from candle i to i+1 (regression target for price
+    targets); `latest_row` is the most recent fully-defined feature vector
+    (whose outcome is still unknown)."""
     from src.modules.technical_analysis.application import service as ta
 
     returns_1 = fe.returns(closes)
@@ -48,15 +53,21 @@ def build_features(
 
     rows: list[list[float]] = []
     labels: list[int] = []
+    log_returns: list[float] = []
     for i in range(len(closes) - 1):
         features = row(i)
         if features is None:
             continue
         rows.append(features)
         labels.append(1 if closes[i + 1] > closes[i] else 0)
+        log_returns.append(
+            math.log(closes[i + 1] / closes[i])
+            if closes[i] > 0 and closes[i + 1] > 0
+            else 0.0
+        )
 
     latest = row(len(closes) - 1)
-    return rows, labels, latest
+    return rows, labels, log_returns, latest
 
 
 def _fill(values: list[float | None]) -> list[float]:

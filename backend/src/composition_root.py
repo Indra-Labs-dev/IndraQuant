@@ -85,9 +85,16 @@ from src.modules.machine_learning.infrastructure.direction_model import Directio
 from src.modules.pattern_recognition.application.use_cases.detect_patterns import (
     DetectPatternsUseCase,
 )
+from src.modules.prediction_engine.application.use_cases.get_prediction_dashboard import (
+    GetPredictionDashboardUseCase,
+)
+from src.modules.prediction_engine.application.use_cases.manage_training import (
+    ManageTrainingUseCase,
+)
 from src.modules.prediction_engine.application.use_cases.predict_direction import (
     PredictDirectionUseCase,
 )
+from src.modules.prediction_engine.infrastructure.training_runner import TrainingRunner
 from src.modules.prediction_engine.application.use_cases.resolve_predictions import (
     ResolvePredictionsUseCase,
 )
@@ -251,6 +258,35 @@ def _resolve_predictions_once() -> None:
 prediction_resolver_runner = PredictionResolverRunner(_resolve_predictions_once)
 
 
+def get_prediction_dashboard_use_case(
+    session: Session = Depends(get_db_session),
+) -> GetPredictionDashboardUseCase:
+    return GetPredictionDashboardUseCase(
+        SqlAlchemyPredictionRepository(session), SqlAlchemyInstrumentRepository(session)
+    )
+
+
+def _run_prediction_once(instrument_id: int, timeframe: str) -> None:
+    session = SessionLocal()
+    try:
+        get_predict_direction_use_case(session).execute(instrument_id, timeframe)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+training_runner = TrainingRunner(_run_prediction_once)
+
+
+def get_manage_training_use_case(
+    session: Session = Depends(get_db_session),
+) -> ManageTrainingUseCase:
+    return ManageTrainingUseCase(training_runner, SqlAlchemyInstrumentRepository(session))
+
+
 def get_detect_smc_use_case(
     session: Session = Depends(get_db_session),
 ) -> DetectSmcUseCase:
@@ -353,6 +389,16 @@ _SEED_EXCHANGES = (
             ("BTC/USDT", "BTC", "USDT", "crypto"),
             ("ETH/USDT", "ETH", "USDT", "crypto"),
             ("SOL/USDT", "SOL", "USDT", "crypto"),
+            ("BNB/USDT", "BNB", "USDT", "crypto"),
+            ("XRP/USDT", "XRP", "USDT", "crypto"),
+            ("ADA/USDT", "ADA", "USDT", "crypto"),
+            ("DOGE/USDT", "DOGE", "USDT", "crypto"),
+            ("AVAX/USDT", "AVAX", "USDT", "crypto"),
+            ("LINK/USDT", "LINK", "USDT", "crypto"),
+            ("DOT/USDT", "DOT", "USDT", "crypto"),
+            ("LTC/USDT", "LTC", "USDT", "crypto"),
+            ("MATIC/USDT", "MATIC", "USDT", "crypto"),
+            ("TRX/USDT", "TRX", "USDT", "crypto"),
         ),
     ),
     (
@@ -362,6 +408,15 @@ _SEED_EXCHANGES = (
             ("AAPL", "AAPL", "USD", "equity"),
             ("MSFT", "MSFT", "USD", "equity"),
             ("TSLA", "TSLA", "USD", "equity"),
+            ("GOOGL", "GOOGL", "USD", "equity"),
+            ("AMZN", "AMZN", "USD", "equity"),
+            ("NVDA", "NVDA", "USD", "equity"),
+            ("META", "META", "USD", "equity"),
+            ("NFLX", "NFLX", "USD", "equity"),
+            ("JPM", "JPM", "USD", "equity"),
+            ("V", "V", "USD", "equity"),
+            ("AMD", "AMD", "USD", "equity"),
+            ("DIS", "DIS", "USD", "equity"),
         ),
     ),
 )

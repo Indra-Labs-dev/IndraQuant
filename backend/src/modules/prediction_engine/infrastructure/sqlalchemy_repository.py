@@ -110,3 +110,60 @@ class SqlAlchemyPredictionRepository:
             )
         ).one()
         return count or 0, float(avg_correct) if avg_correct is not None else None
+
+    def summary_by_timeframe(self) -> list[dict]:
+        rows = self._session.execute(
+            select(
+                PredictionModel.timeframe,
+                func.sum(case((PredictionModel.resolved_at.is_not(None), 1), else_=0)),
+                func.sum(case((PredictionModel.resolved_at.is_(None), 1), else_=0)),
+                # No else_: unresolved rows (correct IS NULL) contribute NULL,
+                # which AVG() ignores — only resolved rows count toward accuracy.
+                func.avg(
+                    case(
+                        (PredictionModel.correct.is_(True), 1.0),
+                        (PredictionModel.correct.is_(False), 0.0),
+                    )
+                ),
+            ).group_by(PredictionModel.timeframe)
+        ).all()
+        return [
+            {
+                "timeframe": timeframe,
+                "resolved": int(resolved or 0),
+                "pending": int(pending or 0),
+                "accuracy": float(accuracy) if accuracy is not None else None,
+            }
+            for timeframe, resolved, pending, accuracy in rows
+        ]
+
+    def list_recent(
+        self,
+        instrument_id: int | None,
+        timeframe: str,
+        limit: int = 100,
+    ) -> list[PredictionModel]:
+        query = (
+            select(PredictionModel)
+            .where(PredictionModel.timeframe == timeframe)
+            .order_by(PredictionModel.created_at.desc())
+            .limit(limit)
+        )
+        if instrument_id is not None:
+            query = query.where(PredictionModel.instrument_id == instrument_id)
+        return list(self._session.scalars(query))
+
+    def list_resolved_ordered(
+        self, instrument_id: int | None, timeframe: str
+    ) -> list[PredictionModel]:
+        query = (
+            select(PredictionModel)
+            .where(
+                PredictionModel.timeframe == timeframe,
+                PredictionModel.resolved_at.is_not(None),
+            )
+            .order_by(PredictionModel.resolved_at)
+        )
+        if instrument_id is not None:
+            query = query.where(PredictionModel.instrument_id == instrument_id)
+        return list(self._session.scalars(query))

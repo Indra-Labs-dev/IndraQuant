@@ -259,6 +259,42 @@ export function deleteAlert(id: number): Promise<{ status: string }> {
   return request(`/alerts/${id}`, { method: "DELETE" });
 }
 
+export function getPredictionDashboard(
+  timeframe: string,
+  instrumentId?: number,
+  limit = 100,
+): Promise<import("./types").PredictionDashboard> {
+  const params = new URLSearchParams({ timeframe, limit: String(limit) });
+  if (instrumentId !== undefined) params.set("instrument_id", String(instrumentId));
+  return request(`/predictions/dashboard?${params}`);
+}
+
+export function startTraining(
+  timeframe: string,
+  instrumentIds: number[],
+): Promise<import("./types").TrainingSessionsResponse> {
+  return request("/training/start", {
+    method: "POST",
+    body: JSON.stringify({ timeframe, instrument_ids: instrumentIds }),
+  });
+}
+
+export function stopTraining(
+  timeframe: string,
+  instrumentIds: number[],
+): Promise<import("./types").TrainingSessionsResponse> {
+  return request("/training/stop", {
+    method: "POST",
+    body: JSON.stringify({ timeframe, instrument_ids: instrumentIds }),
+  });
+}
+
+export function getTrainingSessions(): Promise<
+  import("./types").TrainingSessionsResponse
+> {
+  return request("/training/sessions");
+}
+
 export function getMarketStatus(
   instrumentId: number,
 ): Promise<import("./types").MarketStatus> {

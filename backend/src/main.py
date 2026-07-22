@@ -12,6 +12,7 @@ from src.composition_root import (
     paper_trading_runner,
     prediction_resolver_runner,
     resume_running_paper_sessions,
+    training_runner,
 )
 from src.modules.ai_assistant.interface.router import router as ai_assistant_router
 from src.modules.alert_center.interface.router import router as alert_center_router
@@ -71,11 +72,14 @@ async def lifespan(app: FastAPI):
     import asyncio
 
     bootstrap()
-    paper_trading_runner.attach_loop(asyncio.get_running_loop())
+    loop = asyncio.get_running_loop()
+    paper_trading_runner.attach_loop(loop)
+    training_runner.attach_loop(loop)
     resume_running_paper_sessions()
     alert_runner.start()
     prediction_resolver_runner.start()
     yield
+    training_runner.stop_all()
     prediction_resolver_runner.stop()
     alert_runner.stop()
     paper_trading_runner.stop_all()
