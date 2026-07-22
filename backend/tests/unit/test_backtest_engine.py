@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 
 from src.modules.backtesting.domain.engine import (
     BacktestCandle,
+    bollinger_breakout_positions,
+    macd_crossover_positions,
     run_backtest,
     sma_crossover_positions,
 )
@@ -53,3 +55,21 @@ def test_max_drawdown_and_var():
     assert abs(max_drawdown(equity) - 0.1) < 1e-9
     returns = [0.01] * 19 + [-0.05]
     assert historical_var(returns) == 0.05
+
+
+def test_macd_crossover_positions_long_when_macd_above_signal():
+    macd_line = [None, 1.0, 2.0, -1.0]
+    signal_line = [None, 0.5, 1.5, 0.0]
+    assert macd_crossover_positions(macd_line, signal_line) == [0, 1, 1, 0]
+
+
+def test_macd_crossover_positions_flat_when_missing_history():
+    assert macd_crossover_positions([None, None], [None, None]) == [0, 0]
+
+
+def test_bollinger_breakout_enters_above_upper_band_exits_below_middle():
+    closes = [100.0, 100.0, 106.0, 103.0, 98.0]
+    upper = [None, None, 105.0, 105.0, 105.0]
+    middle = [None, None, 100.0, 100.0, 100.0]
+    positions = bollinger_breakout_positions(closes, upper, middle)
+    assert positions == [0, 0, 1, 1, 0]

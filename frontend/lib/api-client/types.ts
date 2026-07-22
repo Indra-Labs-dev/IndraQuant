@@ -70,6 +70,8 @@ export interface StrategySpec {
   period: number;
   low: number;
   high: number;
+  signal: number;
+  num_std: number;
 }
 
 /** For outgoing requests: only the parameters relevant to the chosen
@@ -198,6 +200,12 @@ export interface PredictionTrackRecord {
   overall_accuracy: number | null;
 }
 
+export interface PriceIntervalTrackRecord {
+  resolved: number;
+  empirical_coverage: number | null;
+  declared_confidence: number;
+}
+
 export interface PriceTargetEstimate {
   current_price: number;
   expected_price: number;
@@ -205,6 +213,7 @@ export interface PriceTargetEstimate {
   high_price: number;
   confidence: number;
   test_error_pct: number;
+  track_record: PriceIntervalTrackRecord;
   explanation: string;
 }
 
@@ -375,6 +384,27 @@ export interface TrainingSessionInfo {
 
 export interface TrainingSessionsResponse {
   sessions: TrainingSessionInfo[];
+}
+
+export interface InstrumentAllocation {
+  instrument_id: number;
+  symbol: string;
+  asset_class: string;
+  equity: number;
+  weight_pct: number;
+}
+
+export interface PortfolioSummary {
+  total_equity: number;
+  total_initial_capital: number;
+  total_pnl: number;
+  total_return_pct: number;
+  total_fees: number;
+  running_sessions: number;
+  stopped_sessions: number;
+  allocation: InstrumentAllocation[];
+  sessions: PaperSession[];
+  explanation: string;
 }
 
 export interface ApiError {

@@ -48,6 +48,35 @@ _DEFINITIONS = {
             StrategyParameter(name="high", label="Seuil haut", default=70, min=1, max=99),
         ],
     ),
+    "macd_crossover": StrategyDefinition(
+        type="macd_crossover",
+        label="Croisement MACD",
+        description=(
+            "Achète quand la ligne MACD passe au-dessus de sa ligne de "
+            "signal, vend quand elle repasse en dessous — capte les "
+            "changements de momentum plus tôt qu'un simple croisement de "
+            "moyennes mobiles."
+        ),
+        parameters=[
+            StrategyParameter(name="fast", label="EMA rapide", default=12, min=2, max=100),
+            StrategyParameter(name="slow", label="EMA lente", default=26, min=3, max=200),
+            StrategyParameter(name="signal", label="Ligne de signal", default=9, min=2, max=50),
+        ],
+    ),
+    "bollinger_breakout": StrategyDefinition(
+        type="bollinger_breakout",
+        label="Cassure de Bollinger",
+        description=(
+            "Achète quand le prix clôture au-dessus de la bande de "
+            "Bollinger supérieure (cassure haussière), vend quand il "
+            "repasse sous la bande médiane — suivi de tendance, à "
+            "l'opposé du retour à la moyenne RSI."
+        ),
+        parameters=[
+            StrategyParameter(name="period", label="Période", default=20, min=5, max=100),
+            StrategyParameter(name="num_std", label="Écart-type (σ)", default=2, min=0.5, max=5),
+        ],
+    ),
 }
 
 

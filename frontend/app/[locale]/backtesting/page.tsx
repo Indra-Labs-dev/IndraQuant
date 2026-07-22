@@ -34,6 +34,12 @@ function strategySummary(strategy: StrategySpec): string {
   if (strategy.type === "rsi_reversion") {
     return `RSI ${strategy.period} (${strategy.low}/${strategy.high})`;
   }
+  if (strategy.type === "macd_crossover") {
+    return `MACD ${strategy.fast}/${strategy.slow}/${strategy.signal}`;
+  }
+  if (strategy.type === "bollinger_breakout") {
+    return `Bollinger ${strategy.period} (${strategy.num_std}σ)`;
+  }
   return `MM ${strategy.fast}/${strategy.slow}`;
 }
 

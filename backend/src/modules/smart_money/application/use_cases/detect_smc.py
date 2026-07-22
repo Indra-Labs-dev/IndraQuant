@@ -2,7 +2,12 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from src.modules.smart_money.domain.structures import SmcCandle, detect_structures
+from src.modules.smart_money.domain.structures import (
+    SmcCandle,
+    detect_fair_value_gap,
+    detect_order_block,
+    detect_structures,
+)
 from src.modules.technical_analysis.application.ports import OhlcvProvider
 
 
@@ -37,7 +42,14 @@ class DetectSmcUseCase:
             SmcCandle(open=c.open, high=c.high, low=c.low, close=c.close)
             for c in response.candles
         ]
-        detections = detect_structures(candles)
+        detections = sorted(
+            [
+                *detect_structures(candles),
+                *detect_fair_value_gap(candles),
+                *detect_order_block(candles),
+            ],
+            key=lambda d: d.index,
+        )
         return SmcResponse(
             instrument_id=instrument_id,
             timeframe=response.timeframe,

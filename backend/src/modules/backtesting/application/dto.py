@@ -12,6 +12,10 @@ class StrategySpec(BaseModel):
     period: int = Field(default=14, ge=2, le=100)
     low: float = Field(default=30.0, ge=1, le=99)
     high: float = Field(default=70.0, ge=1, le=99)
+    # macd_crossover parameters (reuses fast/slow above)
+    signal: int = Field(default=9, ge=2, le=50)
+    # bollinger_breakout parameters (reuses period above)
+    num_std: float = Field(default=2.0, ge=0.5, le=5.0)
 
 
 class RunBacktestRequest(BaseModel):

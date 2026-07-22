@@ -1,4 +1,6 @@
+import math
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from src.modules.prediction_engine.infrastructure.sqlalchemy_repository import (
     SqlAlchemyPredictionRepository,
@@ -68,6 +70,20 @@ class ResolvePredictionsUseCase:
             prediction.correct = (
                 prediction.actual_direction == prediction.predicted_direction
             )
+
+            if (
+                prediction.predicted_low_return is not None
+                and prediction.predicted_high_return is not None
+                and as_of_candle.close > 0
+            ):
+                actual_return = math.log(target_candle.close / as_of_candle.close)
+                prediction.actual_return = Decimal(str(round(actual_return, 8)))
+                prediction.price_in_interval = (
+                    float(prediction.predicted_low_return)
+                    <= actual_return
+                    <= float(prediction.predicted_high_return)
+                )
+
             prediction.resolved_at = now
             resolved += 1
         return resolved

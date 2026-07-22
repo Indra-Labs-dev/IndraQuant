@@ -40,6 +40,17 @@ class PredictionModel(Base):
     )
     correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    predicted_expected_return: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 8), nullable=True
+    )
+    predicted_low_return: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 8), nullable=True
+    )
+    predicted_high_return: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 8), nullable=True
+    )
+    actual_return: Mapped[Decimal | None] = mapped_column(Numeric(12, 8), nullable=True)
+    price_in_interval: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
@@ -98,6 +109,21 @@ class SqlAlchemyPredictionRepository:
             )
         ).one()
         return count or 0, float(avg_correct) if avg_correct is not None else None
+
+    def price_calibration_stats(self, timeframe: str) -> tuple[int, float | None]:
+        """Real, verified coverage of past price-interval estimates for this
+        timeframe — how often the actual return actually fell inside the
+        declared interval (ADR-029)."""
+        count, avg_in = self._session.execute(
+            select(
+                func.count(),
+                func.avg(case((PredictionModel.price_in_interval.is_(True), 1), else_=0)),
+            ).where(
+                PredictionModel.timeframe == timeframe,
+                PredictionModel.price_in_interval.is_not(None),
+            )
+        ).one()
+        return count or 0, float(avg_in) if avg_in is not None else None
 
     def overall_accuracy(self, timeframe: str) -> tuple[int, float | None]:
         count, avg_correct = self._session.execute(

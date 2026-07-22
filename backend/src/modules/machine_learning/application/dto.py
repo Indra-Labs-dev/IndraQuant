@@ -27,6 +27,17 @@ class PredictionTrackRecord(BaseModel):
     overall_accuracy: float | None
 
 
+class PriceIntervalTrackRecord(BaseModel):
+    """Real, verified coverage of past price-interval estimates for this
+    timeframe — how often the actual outcome fell inside the declared
+    interval, the factual basis used to widen/narrow future intervals
+    (ADR-029)."""
+
+    resolved: int
+    empirical_coverage: float | None
+    declared_confidence: float
+
+
 class PriceTargetEstimate(BaseModel):
     """Probabilistic price projection (ADR-025) — never a single number:
     an expected price plus a low/high interval at a stated confidence,
@@ -38,6 +49,7 @@ class PriceTargetEstimate(BaseModel):
     high_price: float
     confidence: float
     test_error_pct: float
+    track_record: PriceIntervalTrackRecord
     explanation: str
 
 

@@ -68,6 +68,38 @@ def sma_crossover_positions(
     return positions
 
 
+def macd_crossover_positions(
+    macd_line: list[float | None], signal_line: list[float | None]
+) -> list[int]:
+    """Momentum crossover: long while the MACD line is above its signal
+    line, flat otherwise — same relationship as `sma_crossover_positions`
+    but on the MACD/signal pair instead of two SMAs."""
+    return [
+        1 if m is not None and s is not None and m > s else 0
+        for m, s in zip(macd_line, signal_line)
+    ]
+
+
+def bollinger_breakout_positions(
+    closes: list[float],
+    upper: list[float | None],
+    middle: list[float | None],
+) -> list[int]:
+    """Trend-following breakout: enter long once price closes above the
+    upper Bollinger band, exit once it falls back below the middle band
+    (the moving average) — the opposite philosophy to the RSI mean-
+    reversion strategy, which fades extremes instead of following them."""
+    positions: list[int] = []
+    holding = 0
+    for close, u, m in zip(closes, upper, middle):
+        if u is not None and close > u:
+            holding = 1
+        elif m is not None and close < m:
+            holding = 0
+        positions.append(holding)
+    return positions
+
+
 def run_backtest(
     candles: list[BacktestCandle],
     positions: list[int],

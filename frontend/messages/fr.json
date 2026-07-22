@@ -7,6 +7,7 @@
     "dashboard": "Tableau de bord",
     "backtesting": "Backtesting",
     "paperTrading": "Paper trading",
+    "portfolio": "Portefeuille",
     "news": "Actualités",
     "training": "Entraînement IA",
     "alerts": "Alertes",
@@ -135,6 +136,24 @@
     "history": "Backtests précédents",
     "noHistory": "Aucun backtest enregistré."
   },
+  "portfolio": {
+    "title": "Portefeuille",
+    "subtitle": "Vue agrégée réelle sur toutes vos sessions de paper trading (en cours et arrêtées).",
+    "loading": "Chargement du portefeuille…",
+    "noSessions": "Aucune session de paper trading pour l'instant — démarrez-en une depuis la page Paper trading.",
+    "error": "Impossible de charger le portefeuille.",
+    "totalEquity": "Capital total",
+    "totalPnl": "PnL total",
+    "totalReturn": "Rendement total",
+    "totalFees": "Frais cumulés",
+    "runningSessions": "Sessions en cours",
+    "stoppedSessions": "Sessions arrêtées",
+    "allocationTitle": "Répartition par instrument",
+    "sessionsTitle": "Sessions",
+    "statusRunning": "en cours",
+    "statusStopped": "arrêtée",
+    "refresh": "Actualisation automatique toutes les 15 s"
+  },
   "paper": {
     "title": "Paper trading",
     "subtitle": "Exécution simulée en quasi temps réel, sans argent réel.",
@@ -205,7 +224,9 @@
     "noSmc": "Aucune structure détectée sur la période.",
     "smcKinds": {
       "break_of_structure": "Cassure de structure",
-      "liquidity_sweep": "Prise de liquidité"
+      "liquidity_sweep": "Prise de liquidité",
+      "fair_value_gap": "Fair Value Gap",
+      "order_block": "Order Block"
     },
     "prediction": {
       "title": "Prédiction IA",

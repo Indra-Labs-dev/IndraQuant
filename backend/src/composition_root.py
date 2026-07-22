@@ -3,7 +3,9 @@
 defined here, never on concrete infrastructure directly.
 """
 
+import time
 from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, Header
 from sqlalchemy.orm import Session
@@ -37,11 +39,15 @@ from src.modules.market_data.application.use_cases.get_ohlcv import GetOhlcvUseC
 from src.modules.market_data.application.use_cases.list_instruments import (
     ListInstrumentsUseCase,
 )
+from src.modules.market_data.domain.trading_calendar import equity_market_status
 from src.modules.market_data.infrastructure.ccxt_repository import (
     CcxtMarketDataRepository,
 )
 from src.modules.market_data.infrastructure.composite_repository import (
     CompositeMarketDataRepository,
+)
+from src.modules.market_data.infrastructure.refresh_runner import (
+    MarketDataRefreshRunner,
 )
 from src.modules.market_data.infrastructure.yfinance_repository import (
     YFinanceMarketDataRepository,
@@ -66,6 +72,9 @@ from src.modules.paper_trading.application.use_cases.manage_sessions import (
 )
 from src.modules.paper_trading.application.use_cases.process_tick import (
     ProcessTickUseCase,
+)
+from src.modules.portfolio_analytics.application.use_cases.get_portfolio_summary import (
+    GetPortfolioSummaryUseCase,
 )
 from src.modules.news_intelligence.application.use_cases.get_news import (
     GetNewsUseCase,
@@ -198,6 +207,53 @@ def get_ohlcv_use_case(
         SqlAlchemyCandleStore(session),
         event_bus,
     )
+
+
+_REFRESH_TIMEFRAMES = ("1h", "1d")
+_REFRESH_LOOKBACK = {"1h": timedelta(days=3), "1d": timedelta(days=30)}
+
+
+def _refresh_market_data_once() -> int:
+    """Proactively keeps the most-used timeframes warm in storage instead of
+    only ever fetching on-demand (ADR-030). Reuses `GetOhlcvUseCase`'s
+    already-tested read-through ingestion — this is purely a scheduler, the
+    upsert/backfill logic itself is not duplicated here."""
+    session = SessionLocal()
+    refreshed = 0
+    try:
+        instruments = SqlAlchemyInstrumentRepository(session).list_instruments()
+        ohlcv = get_ohlcv_use_case(session)
+        now = datetime.now(timezone.utc)
+        equity_open = equity_market_status(now).is_open
+
+        for instrument in instruments:
+            if instrument.asset_class == "equity" and not equity_open:
+                continue
+            for timeframe in _REFRESH_TIMEFRAMES:
+                try:
+                    ohlcv.execute(
+                        instrument.id,
+                        timeframe,
+                        now - _REFRESH_LOOKBACK[timeframe],
+                        now,
+                        2,
+                    )
+                    refreshed += 1
+                except Exception:
+                    pass
+                # Stagger calls so all instruments/timeframes don't hit the
+                # upstream exchange APIs in a single burst.
+                time.sleep(1)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+    return refreshed
+
+
+market_data_refresh_runner = MarketDataRefreshRunner(_refresh_market_data_once)
 
 
 def get_compute_indicators_use_case(
@@ -354,6 +410,14 @@ def get_manage_sessions_use_case(
 ) -> ManageSessionsUseCase:
     return ManageSessionsUseCase(
         SqlAlchemyPaperTradingRepository(session), get_ohlcv_use_case(session)
+    )
+
+
+def get_portfolio_summary_use_case(
+    session: Session = Depends(get_db_session),
+) -> GetPortfolioSummaryUseCase:
+    return GetPortfolioSummaryUseCase(
+        get_manage_sessions_use_case(session), SqlAlchemyInstrumentRepository(session)
     )
 
 

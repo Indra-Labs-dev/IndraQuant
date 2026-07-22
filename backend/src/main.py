@@ -9,6 +9,7 @@ from sqlalchemy import text
 from src.composition_root import (
     alert_runner,
     bootstrap,
+    market_data_refresh_runner,
     paper_trading_runner,
     prediction_resolver_runner,
     resume_running_paper_sessions,
@@ -24,6 +25,9 @@ from src.modules.economic_calendar.interface.router import (
 from src.modules.market_data.interface.router import router as market_data_router
 from src.modules.news_intelligence.interface.router import router as news_router
 from src.modules.paper_trading.interface.router import router as paper_trading_router
+from src.modules.portfolio_analytics.interface.router import (
+    router as portfolio_analytics_router,
+)
 from src.modules.prediction_engine.interface.router import (
     router as prediction_engine_router,
 )
@@ -78,7 +82,9 @@ async def lifespan(app: FastAPI):
     resume_running_paper_sessions()
     alert_runner.start()
     prediction_resolver_runner.start()
+    market_data_refresh_runner.start()
     yield
+    market_data_refresh_runner.stop()
     training_runner.stop_all()
     prediction_resolver_runner.stop()
     alert_runner.stop()
@@ -120,6 +126,7 @@ def create_app() -> FastAPI:
     app.include_router(pattern_recognition_router, prefix="/api/v1")
     app.include_router(backtesting_router, prefix="/api/v1")
     app.include_router(paper_trading_router, prefix="/api/v1")
+    app.include_router(portfolio_analytics_router, prefix="/api/v1")
     app.include_router(prediction_engine_router, prefix="/api/v1")
     app.include_router(smart_money_router, prefix="/api/v1")
     app.include_router(economic_calendar_router, prefix="/api/v1")

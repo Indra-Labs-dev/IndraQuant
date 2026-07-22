@@ -295,6 +295,12 @@ export function getTrainingSessions(): Promise<
   return request("/training/sessions");
 }
 
+export function getPortfolioSummary(): Promise<
+  import("./types").PortfolioSummary
+> {
+  return request("/portfolio/summary");
+}
+
 export function getMarketStatus(
   instrumentId: number,
 ): Promise<import("./types").MarketStatus> {

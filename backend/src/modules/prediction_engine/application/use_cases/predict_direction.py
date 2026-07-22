@@ -9,10 +9,12 @@ from src.modules.machine_learning.application.dto import (
     FeatureContribution,
     ModelScore,
     PredictionTrackRecord,
+    PriceIntervalTrackRecord,
     PriceTargetEstimate,
 )
 from src.modules.machine_learning.domain.calibration import (
     blend_calibration,
+    calibrate_price_interval,
     confidence_bucket,
 )
 from src.modules.machine_learning.domain.features import FEATURE_NAMES, build_features
@@ -137,7 +139,7 @@ class PredictDirectionUseCase:
         predicted_direction = "up" if trained.prob_up >= 0.5 else "down"
         raw_confidence = max(trained.prob_up, 1.0 - trained.prob_up)
 
-        track_record = self._record_and_get_track_record(
+        track_record, price_resolved, price_coverage = self._record_and_get_track_record(
             instrument_id,
             timeframe,
             as_of,
@@ -145,6 +147,9 @@ class PredictDirectionUseCase:
             predicted_direction,
             trained.prob_up,
             models,
+            price_trained.expected_return,
+            price_trained.low_return,
+            price_trained.high_return,
         )
 
         calibrated_confidence = blend_calibration(
@@ -176,10 +181,28 @@ class PredictDirectionUseCase:
             "fil des prochaines bougies résolues."
         )
 
+        calibrated_low_return, calibrated_high_return = calibrate_price_interval(
+            price_trained.expected_return,
+            price_trained.low_return,
+            price_trained.high_return,
+            price_coverage,
+            price_resolved,
+            price_trained.confidence,
+        )
+
         current_price = closes[-1]
         expected_price = current_price * math.exp(price_trained.expected_return)
-        low_price = current_price * math.exp(price_trained.low_return)
-        high_price = current_price * math.exp(price_trained.high_return)
+        low_price = current_price * math.exp(calibrated_low_return)
+        high_price = current_price * math.exp(calibrated_high_return)
+        price_calibration_note = (
+            f" Auto-apprentissage : sur {price_resolved} estimation(s) passée(s) à "
+            f"cette unité de temps, le prix réel est tombé dans l'intervalle annoncé "
+            f"{price_coverage * 100:.1f} % du temps (visé : {price_trained.confidence * 100:.0f} %) "
+            "— l'intervalle ci-dessus est ajusté en conséquence."
+            if price_coverage is not None
+            else " Auto-apprentissage : pas encore assez d'estimations vérifiées pour "
+            "ajuster cet intervalle ; cela s'affinera au fil des prochaines bougies résolues."
+        )
         price_target = PriceTargetEstimate(
             current_price=round(current_price, 8),
             expected_price=round(expected_price, 8),
@@ -187,6 +210,13 @@ class PredictDirectionUseCase:
             high_price=round(max(low_price, high_price), 8),
             confidence=price_trained.confidence,
             test_error_pct=round(price_trained.test_mae * 100, 3),
+            track_record=PriceIntervalTrackRecord(
+                resolved=price_resolved,
+                empirical_coverage=(
+                    round(price_coverage, 4) if price_coverage is not None else None
+                ),
+                declared_confidence=price_trained.confidence,
+            ),
             explanation=(
                 f"Projection statistique (régression XGBoost sur le même jeu de "
                 f"variables), pas une garantie : prix actuel {current_price:.2f} → "
@@ -195,6 +225,7 @@ class PredictDirectionUseCase:
                 f"de confiance. Intervalle construit à partir de l'erreur réellement "
                 f"observée du modèle sur les données de test (erreur moyenne "
                 f"{price_trained.test_mae * 100:.2f} %), pas d'une hypothèse théorique."
+                f"{price_calibration_note}"
             ),
         )
 
@@ -241,17 +272,24 @@ class PredictDirectionUseCase:
         predicted_direction: str,
         raw_prob_up: float,
         models: list[ModelScore],
-    ) -> PredictionTrackRecord:
+        predicted_expected_return: float,
+        predicted_low_return: float,
+        predicted_high_return: float,
+    ) -> tuple[PredictionTrackRecord, int, float | None]:
         low, high = confidence_bucket(max(raw_prob_up, 1.0 - raw_prob_up))
 
         if self._predictions is None:
-            return PredictionTrackRecord(
-                bucket_low=low,
-                bucket_high=high,
-                bucket_resolved=0,
-                bucket_accuracy=None,
-                overall_resolved=0,
-                overall_accuracy=None,
+            return (
+                PredictionTrackRecord(
+                    bucket_low=low,
+                    bucket_high=high,
+                    bucket_resolved=0,
+                    bucket_accuracy=None,
+                    overall_resolved=0,
+                    overall_accuracy=None,
+                ),
+                0,
+                None,
             )
 
         as_of_naive, target_naive = _naive(as_of), _naive(target_time)
@@ -265,6 +303,11 @@ class PredictDirectionUseCase:
                     predicted_direction=predicted_direction,
                     raw_prob_up=Decimal(str(round(raw_prob_up, 4))),
                     model_json=json.dumps([m.model_dump() for m in models]),
+                    predicted_expected_return=Decimal(
+                        str(round(predicted_expected_return, 8))
+                    ),
+                    predicted_low_return=Decimal(str(round(predicted_low_return, 8))),
+                    predicted_high_return=Decimal(str(round(predicted_high_return, 8))),
                 )
             )
 
@@ -274,11 +317,18 @@ class PredictDirectionUseCase:
         overall_resolved, overall_accuracy = self._predictions.overall_accuracy(
             timeframe
         )
-        return PredictionTrackRecord(
-            bucket_low=low,
-            bucket_high=high,
-            bucket_resolved=bucket_resolved,
-            bucket_accuracy=bucket_accuracy,
-            overall_resolved=overall_resolved,
-            overall_accuracy=overall_accuracy,
+        price_resolved, price_coverage = self._predictions.price_calibration_stats(
+            timeframe
+        )
+        return (
+            PredictionTrackRecord(
+                bucket_low=low,
+                bucket_high=high,
+                bucket_resolved=bucket_resolved,
+                bucket_accuracy=bucket_accuracy,
+                overall_resolved=overall_resolved,
+                overall_accuracy=overall_accuracy,
+            ),
+            price_resolved,
+            price_coverage,
         )

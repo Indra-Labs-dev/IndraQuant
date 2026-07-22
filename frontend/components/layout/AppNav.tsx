@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/", key: "dashboard" },
   { href: "/backtesting", key: "backtesting" },
   { href: "/paper-trading", key: "paperTrading" },
+  { href: "/portfolio", key: "portfolio" },
   { href: "/training", key: "training" },
   { href: "/news", key: "news" },
   { href: "/alerts", key: "alerts" },
