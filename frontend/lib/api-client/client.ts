@@ -196,6 +196,207 @@ export function getPrediction(
   return request(`/instruments/${instrumentId}/prediction?${params}`);
 }
 
+export function getMetaDecision(
+  instrumentId: number,
+  timeframe: string,
+): Promise<import("./types").MetaDecision> {
+  const params = new URLSearchParams({ timeframe });
+  return request(`/instruments/${instrumentId}/meta-decision?${params}`);
+}
+
+export function getGlobalConfidenceScore(
+  instrumentId: number,
+  timeframe: string,
+): Promise<import("./types").GlobalConfidence> {
+  const params = new URLSearchParams({ timeframe });
+  return request(`/instruments/${instrumentId}/confidence-score?${params}`);
+}
+
+export function getMarketRegime(
+  instrumentId: number,
+  timeframe: string,
+): Promise<import("./types").MarketRegime> {
+  const params = new URLSearchParams({ timeframe });
+  return request(`/instruments/${instrumentId}/market-regime?${params}`);
+}
+
+export function getCorrelations(
+  instrumentIds: number[],
+  timeframe: string,
+  window = 20,
+): Promise<import("./types").CorrelationMatrix> {
+  const params = new URLSearchParams({
+    instrument_ids: instrumentIds.join(","),
+    timeframe,
+    window: String(window),
+  });
+  return request(`/correlations?${params}`);
+}
+
+export function getDriftReport(
+  instrumentId: number,
+  timeframe: string,
+): Promise<import("./types").DriftReport> {
+  const params = new URLSearchParams({ timeframe });
+  return request(`/instruments/${instrumentId}/drift?${params}`);
+}
+
+export function getModelValidation(
+  instrumentId: number,
+  timeframe: string,
+): Promise<import("./types").ModelValidation> {
+  const params = new URLSearchParams({ timeframe });
+  return request(`/instruments/${instrumentId}/model-validation?${params}`);
+}
+
+export function validateBacktest(
+  params: BacktestParams,
+): Promise<import("./types").BacktestValidation> {
+  return request("/backtests/validation", {
+    method: "POST",
+    body: JSON.stringify({
+      ...params,
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+    }),
+  });
+}
+
+export function optimizeStrategy(params: {
+  instrument_id: number;
+  timeframe: string;
+  from: Date;
+  to: Date;
+  strategy_type: string;
+  method?: import("./types").HpoMethod;
+  n_trials?: number;
+  initial_capital?: number;
+}): Promise<import("./types").HpoResult> {
+  return request("/optimization/strategy", {
+    method: "POST",
+    body: JSON.stringify({
+      ...params,
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+    }),
+  });
+}
+
+export function optimizeModel(params: {
+  instrument_id: number;
+  timeframe: string;
+  method?: import("./types").HpoMethod;
+  n_trials?: number;
+}): Promise<import("./types").HpoResult> {
+  return request("/optimization/model", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export function getRiskProfile(
+  instrumentId: number,
+  timeframe: string,
+  params?: { capital?: number; risk_per_trade_pct?: number; stop_distance_pct?: number },
+): Promise<import("./types").RiskProfile> {
+  const query = new URLSearchParams({ timeframe });
+  if (params?.capital !== undefined) query.set("capital", String(params.capital));
+  if (params?.risk_per_trade_pct !== undefined)
+    query.set("risk_per_trade_pct", String(params.risk_per_trade_pct));
+  if (params?.stop_distance_pct !== undefined)
+    query.set("stop_distance_pct", String(params.stop_distance_pct));
+  return request(`/instruments/${instrumentId}/risk-profile?${query}`);
+}
+
+export function getExposureReport(): Promise<import("./types").ExposureReport> {
+  return request("/portfolio/exposure");
+}
+
+export function getRiskBudget(): Promise<import("./types").RiskBudget> {
+  return request("/portfolio/risk-budget");
+}
+
+export function getShapHistory(
+  instrumentId: number,
+  timeframe: string,
+  limit = 30,
+): Promise<import("./types").ShapHistory> {
+  const params = new URLSearchParams({ timeframe, limit: String(limit) });
+  return request(`/instruments/${instrumentId}/shap-history?${params}`);
+}
+
+export function getGlobalFeatureImportance(
+  instrumentId: number,
+  timeframe: string,
+  limit = 50,
+): Promise<import("./types").GlobalImportance> {
+  const params = new URLSearchParams({ timeframe, limit: String(limit) });
+  return request(`/instruments/${instrumentId}/feature-importance?${params}`);
+}
+
+export function getFeatureEvolution(
+  instrumentId: number,
+  feature: string,
+  timeframe: string,
+  limit = 50,
+): Promise<import("./types").FeatureEvolution> {
+  const params = new URLSearchParams({ feature, timeframe, limit: String(limit) });
+  return request(`/instruments/${instrumentId}/feature-evolution?${params}`);
+}
+
+export function compareExplanations(
+  predictionIdA: number,
+  predictionIdB: number,
+): Promise<import("./types").ExplanationComparison> {
+  return request(`/predictions/${predictionIdA}/compare/${predictionIdB}`);
+}
+
+export function getModelRegistry(
+  instrumentId: number,
+  timeframe: string,
+  limit = 50,
+): Promise<import("./types").ModelRegistry> {
+  const params = new URLSearchParams({ timeframe, limit: String(limit) });
+  return request(`/instruments/${instrumentId}/model-registry?${params}`);
+}
+
+export function runModelAbTest(
+  instrumentId: number,
+  timeframe: string,
+): Promise<import("./types").AbTestResult> {
+  const params = new URLSearchParams({ timeframe });
+  return request(`/instruments/${instrumentId}/model-registry/ab-test?${params}`);
+}
+
+export function rollbackModelVersion(
+  instrumentId: number,
+  timeframe: string,
+  version: number,
+): Promise<{ instrument_id: number; timeframe: string; champion_version: number; explanation: string }> {
+  const params = new URLSearchParams({ timeframe, version: String(version) });
+  return request(`/instruments/${instrumentId}/model-registry/rollback?${params}`, {
+    method: "POST",
+  });
+}
+
+export function getVolumeProfile(
+  instrumentId: number,
+  timeframe: string,
+  from: Date,
+  to: Date,
+  bins = 10,
+  limit = 500,
+): Promise<import("./types").VolumeProfile> {
+  const params = new URLSearchParams({
+    timeframe,
+    from: from.toISOString(),
+    to: to.toISOString(),
+    bins: String(bins),
+    limit: String(limit),
+  });
+  return request(`/instruments/${instrumentId}/volume-profile?${params}`);
+}
+
 export function getSmc(
   instrumentId: number,
   timeframe: string,

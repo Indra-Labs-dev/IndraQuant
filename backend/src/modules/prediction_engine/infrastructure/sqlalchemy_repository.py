@@ -51,6 +51,7 @@ class PredictionModel(Base):
     )
     actual_return: Mapped[Decimal | None] = mapped_column(Numeric(12, 8), nullable=True)
     price_in_interval: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    shap_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
@@ -75,6 +76,9 @@ class SqlAlchemyPredictionRepository:
         self._session.add(model)
         self._session.flush()
         return model
+
+    def get(self, prediction_id: int) -> PredictionModel | None:
+        return self._session.get(PredictionModel, prediction_id)
 
     def list_unresolved_ready(
         self, now: datetime, limit: int = 200
@@ -178,6 +182,17 @@ class SqlAlchemyPredictionRepository:
         if instrument_id is not None:
             query = query.where(PredictionModel.instrument_id == instrument_id)
         return list(self._session.scalars(query))
+
+    def get_latest_id(self, instrument_id: int, timeframe: str) -> int | None:
+        """Cheapest possible query to detect whether new predictions landed
+        since a cached read — used as a cache-invalidation key (ADR-026
+        discipline) instead of the full `list_recent` fetch."""
+        return self._session.scalar(
+            select(func.max(PredictionModel.id)).where(
+                PredictionModel.instrument_id == instrument_id,
+                PredictionModel.timeframe == timeframe,
+            )
+        )
 
     def list_resolved_ordered(
         self, instrument_id: int | None, timeframe: str

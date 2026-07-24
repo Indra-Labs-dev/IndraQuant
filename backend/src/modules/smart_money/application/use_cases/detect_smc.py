@@ -4,9 +4,14 @@ from pydantic import BaseModel
 
 from src.modules.smart_money.domain.structures import (
     SmcCandle,
+    detect_breaker_blocks,
     detect_fair_value_gap,
+    detect_liquidity_pools,
+    detect_mitigation_blocks,
     detect_order_block,
+    detect_premium_discount_zone,
     detect_structures,
+    detect_volume_imbalance,
 )
 from src.modules.technical_analysis.application.ports import OhlcvProvider
 
@@ -45,8 +50,14 @@ class DetectSmcUseCase:
         detections = sorted(
             [
                 *detect_structures(candles),
+                *detect_structures(candles, lookback=1, scale="internal"),
                 *detect_fair_value_gap(candles),
                 *detect_order_block(candles),
+                *detect_breaker_blocks(candles),
+                *detect_mitigation_blocks(candles),
+                *detect_liquidity_pools(candles),
+                *detect_premium_discount_zone(candles),
+                *detect_volume_imbalance(candles),
             ],
             key=lambda d: d.index,
         )

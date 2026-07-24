@@ -10,9 +10,11 @@
     "portfolio": "Portefeuille",
     "news": "Actualités",
     "training": "Entraînement IA",
+    "correlations": "Corrélations",
     "alerts": "Alertes",
     "assistant": "Assistant IA",
     "settings": "Réglages",
+    "help": "Aide",
     "logout": "Déconnexion"
   },
   "assistant": {
@@ -60,7 +62,60 @@
     "statusPending": "en attente",
     "statusCorrect": "correcte",
     "statusIncorrect": "incorrecte",
-    "refreshHint": "Actualisation automatique toutes les 30 s."
+    "refreshHint": "Actualisation automatique toutes les 30 s.",
+    "driftTitle": "Détection de dérive",
+    "driftCheck": "Vérifier la dérive",
+    "driftChecking": "Analyse en cours…",
+    "driftError": "Impossible d'évaluer la dérive (historique insuffisant ?).",
+    "driftOverall": "Évaluation globale",
+    "driftDataTitle": "Dérive de données (PSI par feature)",
+    "driftLabelTitle": "Dérive de label",
+    "driftConceptTitle": "Dérive de concept (précision réelle du modèle)",
+    "driftSeverity": {
+      "stable": "stable",
+      "modérée": "modérée",
+      "significative": "significative",
+      "indéterminé": "indéterminée"
+    },
+    "validationTitle": "Validation scientifique du modèle",
+    "validationCheck": "Valider le modèle",
+    "validationChecking": "Validation en cours…",
+    "validationError": "Impossible de valider le modèle (historique insuffisant ?).",
+    "validationNaive": "Précision (split naïf 80/20 actuel)",
+    "registryTitle": "Registre de modèles (MLOps)",
+    "registryCheck": "Voir l'historique",
+    "registryChecking": "Chargement…",
+    "registryError": "Impossible de charger le registre (aucun modèle encore entraîné ?).",
+    "registryAbTest": "Test A/B",
+    "registryAbTesting": "Comparaison…",
+    "registryAbTestError": "Test A/B impossible (aucun modèle encore entraîné ?).",
+    "registryAbTestTitle": "XGBoost vs régression logistique",
+    "registryVersion": "Version",
+    "registryChampionType": "Type champion",
+    "registryStatus": "Statut",
+    "registryChampion": "Champion",
+    "registryChallenger": "Challenger",
+    "registryRolledBack": "Annulée (rollback)"
+  },
+  "correlations": {
+    "title": "Corrélations",
+    "subtitle": "Pearson, Spearman, corrélation glissante et dynamique (EWMA) entre plusieurs instruments, calculées sur les rendements.",
+    "timeframe": "Unité de temps",
+    "window": "Fenêtre (bougies)",
+    "compute": "Calculer",
+    "computing": "Calcul en cours…",
+    "selectionHint": "{count} instrument(s) sélectionné(s) — au moins 2 requis.",
+    "groupCrypto": "Crypto",
+    "groupEquity": "Actions",
+    "error": "Impossible de calculer les corrélations.",
+    "resultsTitle": "Matrice de corrélation",
+    "noResults": "Sélectionnez au moins deux instruments puis cliquez sur Calculer.",
+    "columnPair": "Paire",
+    "columnPearson": "Pearson",
+    "columnSpearman": "Spearman",
+    "columnRolling": "Glissante",
+    "columnDynamic": "Dynamique (EWMA)",
+    "columnSamples": "Échantillons"
   },
   "alerts": {
     "title": "Alertes",
@@ -134,7 +189,13 @@
     "meanTest": "Rendement test moyen",
     "positiveFolds": "Plis positifs",
     "history": "Backtests précédents",
-    "noHistory": "Aucun backtest enregistré."
+    "noHistory": "Aucun backtest enregistré.",
+    "validation": "Valider scientifiquement",
+    "validationRunning": "Validation en cours…",
+    "validationTitle": "Validation scientifique (docs/roadmap #7)",
+    "bootstrapTitle": "Bootstrap",
+    "monteCarloTitle": "Monte Carlo (permutation)",
+    "realityCheckTitle": "Reality Check de White"
   },
   "portfolio": {
     "title": "Portefeuille",
@@ -152,7 +213,13 @@
     "sessionsTitle": "Sessions",
     "statusRunning": "en cours",
     "statusStopped": "arrêtée",
-    "refresh": "Actualisation automatique toutes les 15 s"
+    "refresh": "Actualisation automatique toutes les 15 s",
+    "exposureTitle": "Contrôle d'exposition",
+    "exposureOk": "Aucune concentration excessive détectée.",
+    "riskBudgetTitle": "Budget de risque (parité de risque)",
+    "columnInstrument": "Instrument",
+    "columnCurrentWeight": "Poids actuel",
+    "columnTargetWeight": "Poids cible (risque égal)"
   },
   "paper": {
     "title": "Paper trading",
@@ -226,7 +293,15 @@
       "break_of_structure": "Cassure de structure",
       "liquidity_sweep": "Prise de liquidité",
       "fair_value_gap": "Fair Value Gap",
-      "order_block": "Order Block"
+      "order_block": "Order Block",
+      "internal_break_of_structure": "Cassure de structure interne",
+      "internal_liquidity_sweep": "Prise de liquidité interne",
+      "breaker_block": "Breaker Block",
+      "mitigation_block": "Mitigation Block",
+      "liquidity_pool": "Pool de liquidité",
+      "premium_zone": "Zone Premium",
+      "discount_zone": "Zone Discount",
+      "volume_imbalance": "Volume Imbalance"
     },
     "prediction": {
       "title": "Prédiction IA",
@@ -257,6 +332,52 @@
         "dist_sma_50": "Écart à la MM 50",
         "volume_zscore_20": "Volume (z-score 20)"
       }
+    },
+    "confidenceScore": {
+      "title": "Score global de confiance",
+      "analyze": "Analyser",
+      "analyzing": "Calcul du score…",
+      "error": "Calcul impossible (historique insuffisant ?).",
+      "base": "Base Meta Decision Engine",
+      "levels": {
+        "élevé": "Confiance élevée",
+        "modéré": "Confiance modérée",
+        "faible": "Confiance faible"
+      }
+    },
+    "metaDecision": {
+      "title": "Meta Decision Engine",
+      "analyze": "Analyser",
+      "analyzing": "Fusion des moteurs…",
+      "error": "Analyse impossible (historique insuffisant ?).",
+      "score": "Score",
+      "confidence": "confiance",
+      "directions": {
+        "bullish": "Haussier",
+        "bearish": "Baissier",
+        "neutral": "Neutre"
+      },
+      "engines": {
+        "trend": "Tendance",
+        "mean_reversion": "Retour à la moyenne",
+        "volatility": "Volatilité",
+        "liquidity": "Liquidité (SMC)",
+        "ml": "Modèle ML",
+        "news": "Actualités",
+        "macro": "Macroéconomie"
+      },
+      "panic": "Panique",
+      "regimeLabels": {
+        "bull": "Régime haussier",
+        "bear": "Régime baissier",
+        "range": "Régime range"
+      }
+    },
+    "explainableAi": {
+      "title": "Explicabilité (SHAP)",
+      "analyze": "Analyser",
+      "analyzing": "Calcul de l'importance…",
+      "error": "Analyse impossible (pas assez de prédictions expliquées ?)."
     },
     "timeframes": {
       "1s": "1 seconde",

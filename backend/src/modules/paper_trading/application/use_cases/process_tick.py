@@ -13,6 +13,7 @@ from src.modules.paper_trading.infrastructure.sqlalchemy_repository import (
     SqlAlchemyPaperTradingRepository,
 )
 from src.modules.technical_analysis.application.ports import OhlcvProvider
+from src.shared.events.event_bus import EventBus, PortfolioUpdated
 
 _FEE_RATE = Decimal("0.001")
 
@@ -28,10 +29,14 @@ class ProcessTickUseCase:
     the position must change."""
 
     def __init__(
-        self, repository: SqlAlchemyPaperTradingRepository, ohlcv: OhlcvProvider
+        self,
+        repository: SqlAlchemyPaperTradingRepository,
+        ohlcv: OhlcvProvider,
+        event_bus: EventBus | None = None,
     ) -> None:
         self._repository = repository
         self._ohlcv = ohlcv
+        self._event_bus = event_bus
 
     def execute(self, session_id: int) -> None:
         session = self._repository.get(session_id)
@@ -54,6 +59,7 @@ class ProcessTickUseCase:
         price = Decimal(str(closes[-1]))
         holding = session.position_qty > 0
 
+        traded = False
         if target == 1 and not holding and session.cash > 0:
             fee = session.cash * _FEE_RATE
             quantity = (session.cash - fee) / price
@@ -69,6 +75,7 @@ class ProcessTickUseCase:
                     reason=buy_reason,
                 )
             )
+            traded = True
         elif target == 0 and holding:
             gross = session.position_qty * price
             fee = gross * _FEE_RATE
@@ -83,5 +90,17 @@ class ProcessTickUseCase:
                     price=price,
                     fee=fee,
                     reason=sell_reason,
+                )
+            )
+            traded = True
+
+        if traded and self._event_bus is not None:
+            equity = float(session.cash + session.position_qty * price)
+            self._event_bus.publish(
+                PortfolioUpdated(
+                    session_id=session.id,
+                    instrument_id=session.instrument_id,
+                    equity=equity,
+                    updated_at=datetime.now(timezone.utc),
                 )
             )

@@ -27,6 +27,7 @@ from src.modules.prediction_engine.infrastructure.sqlalchemy_repository import (
     SqlAlchemyPredictionRepository,
 )
 from src.modules.technical_analysis.application.ports import OhlcvProvider
+from src.shared.events.event_bus import EventBus, PredictionCreated
 from src.shared.kernel.errors import AppError
 
 _TIMEFRAME_SECONDS = {
@@ -58,12 +59,16 @@ class PredictDirectionUseCase:
         price_target_model: PriceTargetModel | None = None,
         predictions: SqlAlchemyPredictionRepository | None = None,
         cache=None,
+        event_bus: EventBus | None = None,
+        model_registry=None,
     ) -> None:
         self._ohlcv = ohlcv
         self._model = model
         self._price_target_model = price_target_model or PriceTargetModel()
         self._predictions = predictions
         self._cache = cache
+        self._event_bus = event_bus
+        self._model_registry = model_registry
 
     def execute(self, instrument_id: int, timeframe: str) -> DirectionPrediction:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
@@ -112,7 +117,7 @@ class PredictDirectionUseCase:
             trained = direction_future.result()
             price_trained = price_future.result()
 
-        contributions = sorted(
+        all_contributions = sorted(
             (
                 FeatureContribution(
                     feature=name, value=value, contribution=contribution
@@ -123,7 +128,8 @@ class PredictDirectionUseCase:
             ),
             key=lambda c: abs(c.contribution),
             reverse=True,
-        )[:5]
+        )
+        contributions = all_contributions[:5]
 
         models = [
             ModelScore(
@@ -139,6 +145,21 @@ class PredictDirectionUseCase:
         predicted_direction = "up" if trained.prob_up >= 0.5 else "down"
         raw_confidence = max(trained.prob_up, 1.0 - trained.prob_up)
 
+        if self._model_registry is not None:
+            try:
+                self._model_registry.execute(
+                    instrument_id,
+                    timeframe,
+                    as_of,
+                    trained.model_accuracies["xgboost"],
+                    trained.model_accuracies["logistic_regression"],
+                    trained.test_accuracy,
+                    trained.baseline_accuracy,
+                    trained.training_rows,
+                )
+            except Exception:
+                pass
+
         track_record, price_resolved, price_coverage = self._record_and_get_track_record(
             instrument_id,
             timeframe,
@@ -150,6 +171,7 @@ class PredictDirectionUseCase:
             price_trained.expected_return,
             price_trained.low_return,
             price_trained.high_return,
+            all_contributions,
         )
 
         calibrated_confidence = blend_calibration(
@@ -261,6 +283,17 @@ class PredictDirectionUseCase:
                 self._cache.set(cache_key, prediction.model_dump_json(), ex=ttl)
             except Exception:
                 pass
+
+        if self._event_bus is not None:
+            self._event_bus.publish(
+                PredictionCreated(
+                    instrument_id=instrument_id,
+                    timeframe=response.timeframe,
+                    predicted_direction=predicted_direction,
+                    prob_up=round(calibrated_prob_up, 4),
+                    as_of=as_of,
+                )
+            )
         return prediction
 
     def _record_and_get_track_record(
@@ -275,6 +308,7 @@ class PredictDirectionUseCase:
         predicted_expected_return: float,
         predicted_low_return: float,
         predicted_high_return: float,
+        contributions: list[FeatureContribution],
     ) -> tuple[PredictionTrackRecord, int, float | None]:
         low, high = confidence_bucket(max(raw_prob_up, 1.0 - raw_prob_up))
 
@@ -308,6 +342,7 @@ class PredictDirectionUseCase:
                     ),
                     predicted_low_return=Decimal(str(round(predicted_low_return, 8))),
                     predicted_high_return=Decimal(str(round(predicted_high_return, 8))),
+                    shap_json=json.dumps([c.model_dump() for c in contributions]),
                 )
             )
 

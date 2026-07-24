@@ -46,6 +46,20 @@ def rolling_std(values: list[float], window: int) -> list[float | None]:
     return result
 
 
+def rolling_max(values: list[float], window: int) -> list[float | None]:
+    return [
+        max(values[i - window + 1 : i + 1]) if i >= window - 1 else None
+        for i in range(len(values))
+    ]
+
+
+def rolling_min(values: list[float], window: int) -> list[float | None]:
+    return [
+        min(values[i - window + 1 : i + 1]) if i >= window - 1 else None
+        for i in range(len(values))
+    ]
+
+
 def ema(values: list[float], period: int) -> list[float | None]:
     result: list[float | None] = []
     multiplier = 2 / (period + 1)

@@ -12,10 +12,12 @@ import {
   listStrategies,
   runBacktest,
   runWalkForward,
+  validateBacktest,
 } from "@/lib/api-client/client";
 import type {
   BacktestReport,
   BacktestSummary,
+  BacktestValidation,
   Instrument,
   StrategyDefinition,
   StrategySpec,
@@ -64,8 +66,11 @@ export default function BacktestingPage() {
   const [report, setReport] = useState<BacktestReport | null>(null);
   const [walkForward, setWalkForward] = useState<WalkForwardReport | null>(null);
   const [history, setHistory] = useState<BacktestSummary[]>([]);
-  const [busy, setBusy] = useState<"backtest" | "walkforward" | null>(null);
+  const [busy, setBusy] = useState<"backtest" | "walkforward" | "validation" | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
+  const [validation, setValidation] = useState<BacktestValidation | null>(null);
 
   useEffect(() => {
     if (hydrated && !token) router.push("/login");
@@ -110,6 +115,7 @@ export default function BacktestingPage() {
     setBusy("backtest");
     setError(null);
     setWalkForward(null);
+    setValidation(null);
     runBacktest(params())
       .then((r) => {
         setReport(r);
@@ -126,6 +132,16 @@ export default function BacktestingPage() {
     setError(null);
     runWalkForward({ ...params(), folds: 4 })
       .then(setWalkForward)
+      .catch((e) => setError(e?.message ?? tc("error")))
+      .finally(() => setBusy(null));
+  };
+
+  const launchValidation = () => {
+    if (!instrumentId) return;
+    setBusy("validation");
+    setError(null);
+    validateBacktest(params())
+      .then(setValidation)
       .catch((e) => setError(e?.message ?? tc("error")))
       .finally(() => setBusy(null));
   };
@@ -219,6 +235,13 @@ export default function BacktestingPage() {
             className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white/5 disabled:opacity-50"
           >
             {busy === "walkforward" ? t("walkForwardRunning") : t("walkForward")}
+          </button>
+          <button
+            onClick={launchValidation}
+            disabled={busy !== null || !report}
+            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white/5 disabled:opacity-50"
+          >
+            {busy === "validation" ? t("validationRunning") : t("validation")}
           </button>
         </div>
 
@@ -317,6 +340,28 @@ export default function BacktestingPage() {
             <p className="mt-2 text-xs text-[var(--muted)]">
               {walkForward.explanation}
             </p>
+          </div>
+        )}
+
+        {validation && (
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <h2 className="mb-3 text-sm font-medium text-[var(--muted)]">
+              {t("validationTitle")}
+            </h2>
+            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
+              <div className={cardClass}>
+                <p className="mb-1 font-medium text-[var(--muted)]">{t("bootstrapTitle")}</p>
+                <p className="text-[var(--muted)]">{validation.bootstrap.explanation}</p>
+              </div>
+              <div className={cardClass}>
+                <p className="mb-1 font-medium text-[var(--muted)]">{t("monteCarloTitle")}</p>
+                <p className="text-[var(--muted)]">{validation.monte_carlo.explanation}</p>
+              </div>
+              <div className={cardClass}>
+                <p className="mb-1 font-medium text-[var(--muted)]">{t("realityCheckTitle")}</p>
+                <p className="text-[var(--muted)]">{validation.reality_check.explanation}</p>
+              </div>
+            </div>
           </div>
         )}
 

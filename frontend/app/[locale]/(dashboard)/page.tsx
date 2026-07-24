@@ -7,9 +7,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CandlestickChart, type ChartType } from "@/components/charts/CandlestickChart";
 import { AppNav } from "@/components/layout/AppNav";
 import {
+  getGlobalConfidenceScore,
+  getGlobalFeatureImportance,
   getIndicators,
   getInstruments,
   getMarketStatus,
+  getMetaDecision,
   getOhlcv,
   getPatterns,
   getPrediction,
@@ -19,8 +22,11 @@ import {
 import type {
   Candle,
   DirectionPrediction,
+  GlobalConfidence,
+  GlobalImportance,
   Instrument,
   MarketStatus,
+  MetaDecision,
   PatternDetection,
   SmcDetection,
 } from "@/lib/api-client/types";
@@ -105,6 +111,15 @@ export default function DashboardPage() {
   const [prediction, setPrediction] = useState<DirectionPrediction | null>(null);
   const [predicting, setPredicting] = useState(false);
   const [predictionError, setPredictionError] = useState(false);
+  const [metaDecision, setMetaDecision] = useState<MetaDecision | null>(null);
+  const [metaDeciding, setMetaDeciding] = useState(false);
+  const [metaDecisionError, setMetaDecisionError] = useState(false);
+  const [globalImportance, setGlobalImportance] = useState<GlobalImportance | null>(null);
+  const [importanceLoading, setImportanceLoading] = useState(false);
+  const [importanceError, setImportanceError] = useState(false);
+  const [globalConfidence, setGlobalConfidence] = useState<GlobalConfidence | null>(null);
+  const [confidenceLoading, setConfidenceLoading] = useState(false);
+  const [confidenceError, setConfidenceError] = useState(false);
   const [rsi, setRsi] = useState<number | null>(null);
   const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [live, setLive] = useState(false);
@@ -404,6 +419,101 @@ export default function DashboardPage() {
         <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-medium text-[var(--muted)]">
+              {t("confidenceScore.title")}
+            </h2>
+            <button
+              onClick={() => {
+                if (!instrumentId) return;
+                setConfidenceLoading(true);
+                setConfidenceError(false);
+                getGlobalConfidenceScore(instrumentId, timeframe)
+                  .then(setGlobalConfidence)
+                  .catch(() => setConfidenceError(true))
+                  .finally(() => setConfidenceLoading(false));
+              }}
+              disabled={confidenceLoading || !instrumentId}
+              className="brand-button rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {confidenceLoading
+                ? t("confidenceScore.analyzing")
+                : t("confidenceScore.analyze")}
+            </button>
+          </div>
+          {confidenceError && (
+            <p className="text-sm text-red-400">{t("confidenceScore.error")}</p>
+          )}
+          {globalConfidence && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-4">
+                <div className="relative h-16 w-16 shrink-0">
+                  <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="15.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      className="text-white/10"
+                    />
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="15.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeDasharray={`${(globalConfidence.score / 100) * 97.4} 97.4`}
+                      strokeLinecap="round"
+                      className={
+                        globalConfidence.score >= 65
+                          ? "text-[var(--up)]"
+                          : globalConfidence.score >= 40
+                            ? "text-[var(--accent-orange)]"
+                            : "text-[var(--down)]"
+                      }
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold">
+                    {globalConfidence.score.toFixed(0)}
+                  </span>
+                </div>
+                <div className="text-sm">
+                  <p className="font-medium">
+                    {t(`confidenceScore.levels.${globalConfidence.level}`)} —{" "}
+                    {t(`metaDecision.directions.${globalConfidence.direction}`)}
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    {t("confidenceScore.base")} :{" "}
+                    {(globalConfidence.base_confidence * 100).toFixed(0)} %
+                  </p>
+                </div>
+              </div>
+              <ul className="space-y-1 text-xs">
+                {globalConfidence.factors.map((f) => (
+                  <li key={f.name} className="flex items-start gap-2">
+                    <span
+                      className={
+                        f.multiplier > 1
+                          ? "text-[var(--up)]"
+                          : f.multiplier < 1
+                            ? "text-[var(--down)]"
+                            : "text-[var(--muted)]"
+                      }
+                    >
+                      {f.multiplier > 1 ? "▲" : f.multiplier < 1 ? "▼" : "＝"}
+                    </span>
+                    <span className="text-[var(--muted)]">{f.explanation}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-medium text-[var(--muted)]">
               {t("prediction.title")}
             </h2>
             <button
@@ -548,6 +658,158 @@ export default function DashboardPage() {
               <p className="text-xs text-[var(--muted)]">
                 {prediction.explanation}
               </p>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-medium text-[var(--muted)]">
+                {t("metaDecision.title")}
+              </h2>
+              {metaDecision?.regime && (
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                    metaDecision.regime.is_panic
+                      ? "border-[var(--down)]/40 bg-[var(--down)]/10 text-[var(--down)]"
+                      : "border-white/10 bg-white/5 text-[var(--muted)]"
+                  }`}
+                >
+                  {t(`metaDecision.regimeLabels.${metaDecision.regime.trend}`)}
+                  {metaDecision.regime.is_panic ? ` — ${t("metaDecision.panic")}` : ""}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                if (!instrumentId) return;
+                setMetaDeciding(true);
+                setMetaDecisionError(false);
+                getMetaDecision(instrumentId, timeframe)
+                  .then(setMetaDecision)
+                  .catch(() => setMetaDecisionError(true))
+                  .finally(() => setMetaDeciding(false));
+              }}
+              disabled={metaDeciding || !instrumentId}
+              className="brand-button rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {metaDeciding ? t("metaDecision.analyzing") : t("metaDecision.analyze")}
+            </button>
+          </div>
+          {metaDecisionError && (
+            <p className="text-sm text-red-400">{t("metaDecision.error")}</p>
+          )}
+          {metaDecision && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 text-sm">
+                <span
+                  className={
+                    metaDecision.direction === "bullish"
+                      ? "font-medium text-[var(--up)]"
+                      : metaDecision.direction === "bearish"
+                        ? "font-medium text-[var(--down)]"
+                        : "font-medium text-[var(--muted)]"
+                  }
+                >
+                  {t(`metaDecision.directions.${metaDecision.direction}`)}
+                </span>
+                <span className="text-[var(--muted)]">
+                  {t("metaDecision.score")} : {metaDecision.score.toFixed(2)} —{" "}
+                  {t("metaDecision.confidence")} :{" "}
+                  {(metaDecision.confidence * 100).toFixed(0)} %
+                </span>
+              </div>
+              <ul className="space-y-2">
+                {metaDecision.engines.map((engine) => (
+                  <li
+                    key={engine.engine}
+                    className="rounded-lg border border-white/10 bg-white/[0.02] p-2 text-xs"
+                  >
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="font-medium">
+                        {t(`metaDecision.engines.${engine.engine}`)}
+                      </span>
+                      <span
+                        className={
+                          engine.direction === "bullish"
+                            ? "text-[var(--up)]"
+                            : engine.direction === "bearish"
+                              ? "text-[var(--down)]"
+                              : "text-[var(--muted)]"
+                        }
+                      >
+                        {t(`metaDecision.directions.${engine.direction}`)} (
+                        {engine.score >= 0 ? "+" : ""}
+                        {engine.score.toFixed(2)}, {Math.round(engine.confidence * 100)} %)
+                      </span>
+                    </div>
+                    <p className="text-[var(--muted)]">{engine.explanation}</p>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-[var(--muted)]">{metaDecision.explanation}</p>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-medium text-[var(--muted)]">
+              {t("explainableAi.title")}
+            </h2>
+            <button
+              onClick={() => {
+                if (!instrumentId) return;
+                setImportanceLoading(true);
+                setImportanceError(false);
+                getGlobalFeatureImportance(instrumentId, timeframe)
+                  .then(setGlobalImportance)
+                  .catch(() => setImportanceError(true))
+                  .finally(() => setImportanceLoading(false));
+              }}
+              disabled={importanceLoading || !instrumentId}
+              className="brand-button rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {importanceLoading
+                ? t("explainableAi.analyzing")
+                : t("explainableAi.analyze")}
+            </button>
+          </div>
+          {importanceError && (
+            <p className="text-sm text-red-400">{t("explainableAi.error")}</p>
+          )}
+          {globalImportance && (
+            <div className="space-y-2">
+              <ul className="space-y-1.5">
+                {globalImportance.items.map((item) => {
+                  const magnitude = Math.abs(item.mean_absolute_contribution);
+                  const maxMagnitude = globalImportance.items[0]
+                    ? Math.abs(globalImportance.items[0].mean_absolute_contribution)
+                    : 1;
+                  const widthPct = maxMagnitude > 0 ? (magnitude / maxMagnitude) * 100 : 0;
+                  return (
+                    <li key={item.feature} className="flex items-center gap-2 text-xs">
+                      <span className="w-6 shrink-0 text-[var(--muted)]">
+                        #{item.rank}
+                      </span>
+                      <span className="w-32 shrink-0">
+                        {t(`prediction.featureNames.${item.feature}`)}
+                      </span>
+                      <div className="h-2 flex-1 rounded-full bg-white/5">
+                        <div
+                          className="h-2 rounded-full bg-[var(--accent-cyan)]"
+                          style={{ width: `${widthPct}%` }}
+                        />
+                      </div>
+                      <span className="w-16 shrink-0 text-right text-[var(--muted)]">
+                        {item.mean_absolute_contribution.toFixed(3)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="text-xs text-[var(--muted)]">{globalImportance.explanation}</p>
             </div>
           )}
         </section>

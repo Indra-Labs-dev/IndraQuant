@@ -2,11 +2,21 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 
-from src.composition_root import get_compute_indicators_use_case, get_current_user
+from src.composition_root import (
+    get_compute_indicators_use_case,
+    get_current_user,
+    get_volume_profile_use_case,
+)
 from src.modules.auth.application.dto import UserProfile
-from src.modules.technical_analysis.application.dto import IndicatorsResponse
+from src.modules.technical_analysis.application.dto import (
+    IndicatorsResponse,
+    VolumeProfileResponse,
+)
 from src.modules.technical_analysis.application.use_cases.compute_indicators import (
     ComputeIndicatorsUseCase,
+)
+from src.modules.technical_analysis.application.use_cases.get_volume_profile import (
+    GetVolumeProfileUseCase,
 )
 
 router = APIRouter(prefix="/instruments", tags=["technical-analysis"])
@@ -28,3 +38,17 @@ def get_indicators(
 ) -> IndicatorsResponse:
     specs = [s for s in indicators.split(",") if s.strip()]
     return use_case.execute(instrument_id, timeframe, from_, to, limit, specs)
+
+
+@router.get("/{instrument_id}/volume-profile")
+def get_volume_profile(
+    instrument_id: int,
+    timeframe: str = Query(),
+    from_: datetime = Query(alias="from"),
+    to: datetime = Query(),
+    limit: int = Query(default=500, ge=1, le=5000),
+    bins: int = Query(default=10, ge=3, le=50),
+    _: UserProfile = Depends(get_current_user),
+    use_case: GetVolumeProfileUseCase = Depends(get_volume_profile_use_case),
+) -> VolumeProfileResponse:
+    return use_case.execute(instrument_id, timeframe, from_, to, limit, bins)

@@ -16,3 +16,5 @@ pandas
 numpy
 pytest
 httpx
+optuna
+hyperopt

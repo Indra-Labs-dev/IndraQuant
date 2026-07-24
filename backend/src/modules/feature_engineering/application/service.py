@@ -22,3 +22,11 @@ def rolling_std(values: list[float], window: int) -> list[float | None]:
 
 def ema(values: list[float], period: int) -> list[float | None]:
     return series.ema(values, period)
+
+
+def rolling_max(values: list[float], window: int) -> list[float | None]:
+    return series.rolling_max(values, window)
+
+
+def rolling_min(values: list[float], window: int) -> list[float | None]:
+    return series.rolling_min(values, window)

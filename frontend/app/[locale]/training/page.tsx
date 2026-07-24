@@ -7,16 +7,24 @@ import { CalibrationChart } from "@/components/charts/CalibrationChart";
 import { RollingAccuracyChart } from "@/components/charts/RollingAccuracyChart";
 import { AppNav } from "@/components/layout/AppNav";
 import {
+  getDriftReport,
   getInstruments,
+  getModelRegistry,
+  getModelValidation,
   getPredictionDashboard,
   getSettings,
   getTrainingSessions,
+  runModelAbTest,
   startTraining,
   stopTraining,
   updateSetting,
 } from "@/lib/api-client/client";
 import type {
+  AbTestResult,
+  DriftReport,
   Instrument,
+  ModelRegistry,
+  ModelValidation,
   PredictionDashboard,
   TrainingSessionInfo,
 } from "@/lib/api-client/types";
@@ -49,6 +57,18 @@ export default function TrainingPage() {
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState(false);
   const [recentPage, setRecentPage] = useState(0);
+  const [drift, setDrift] = useState<DriftReport | null>(null);
+  const [driftLoading, setDriftLoading] = useState(false);
+  const [driftError, setDriftError] = useState(false);
+  const [modelValidation, setModelValidation] = useState<ModelValidation | null>(null);
+  const [validationLoading, setValidationLoading] = useState(false);
+  const [validationError, setValidationError] = useState(false);
+  const [modelRegistry, setModelRegistry] = useState<ModelRegistry | null>(null);
+  const [registryLoading, setRegistryLoading] = useState(false);
+  const [registryError, setRegistryError] = useState(false);
+  const [abTest, setAbTest] = useState<AbTestResult | null>(null);
+  const [abTestLoading, setAbTestLoading] = useState(false);
+  const [abTestError, setAbTestError] = useState(false);
 
   useEffect(() => {
     if (hydrated && !token) router.push("/login");
@@ -454,6 +474,227 @@ export default function TrainingPage() {
             </div>
           )}
         </section>
+
+        {instrumentId !== "all" && (
+          <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-medium text-[var(--muted)]">
+                {t("driftTitle")}
+              </h2>
+              <button
+                onClick={() => {
+                  setDriftLoading(true);
+                  setDriftError(false);
+                  getDriftReport(instrumentId, timeframe)
+                    .then(setDrift)
+                    .catch(() => setDriftError(true))
+                    .finally(() => setDriftLoading(false));
+                }}
+                disabled={driftLoading}
+                className="brand-button rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {driftLoading ? t("driftChecking") : t("driftCheck")}
+              </button>
+            </div>
+            {driftError && <p className="text-sm text-red-400">{t("driftError")}</p>}
+            {drift && (
+              <div className="space-y-3 text-sm">
+                <p>
+                  {t("driftOverall")} :{" "}
+                  <span
+                    className={
+                      drift.overall_severity === "significative"
+                        ? "font-medium text-[var(--down)]"
+                        : drift.overall_severity === "modérée"
+                          ? "font-medium text-[var(--accent-orange)]"
+                          : "font-medium text-[var(--up)]"
+                    }
+                  >
+                    {t(`driftSeverity.${drift.overall_severity}`)}
+                  </span>
+                </p>
+                <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs">
+                  <p className="mb-1 font-medium text-[var(--muted)]">
+                    {t("driftDataTitle")}
+                  </p>
+                  <ul className="space-y-1">
+                    {drift.feature_drifts.map((f) => (
+                      <li key={f.feature} className="flex items-center justify-between gap-2">
+                        <span>{f.feature}</span>
+                        <span className="text-[var(--muted)]">
+                          {f.psi === null ? "—" : `PSI ${f.psi.toFixed(3)}`} —{" "}
+                          {t(`driftSeverity.${f.severity}`)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs">
+                  <p className="mb-1 font-medium text-[var(--muted)]">
+                    {t("driftLabelTitle")}
+                  </p>
+                  <p className="text-[var(--muted)]">{drift.label_drift.explanation}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs">
+                  <p className="mb-1 font-medium text-[var(--muted)]">
+                    {t("driftConceptTitle")}
+                  </p>
+                  <p className="text-[var(--muted)]">{drift.concept_drift.explanation}</p>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {instrumentId !== "all" && (
+          <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-medium text-[var(--muted)]">
+                {t("validationTitle")}
+              </h2>
+              <button
+                onClick={() => {
+                  setValidationLoading(true);
+                  setValidationError(false);
+                  getModelValidation(instrumentId, timeframe)
+                    .then(setModelValidation)
+                    .catch(() => setValidationError(true))
+                    .finally(() => setValidationLoading(false));
+                }}
+                disabled={validationLoading}
+                className="brand-button rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {validationLoading ? t("validationChecking") : t("validationCheck")}
+              </button>
+            </div>
+            {validationError && (
+              <p className="text-sm text-red-400">{t("validationError")}</p>
+            )}
+            {modelValidation && (
+              <div className="space-y-2 text-xs">
+                <p className="text-[var(--muted)]">
+                  {t("validationNaive")} :{" "}
+                  <span className="text-[var(--foreground)]">
+                    {modelValidation.naive_split_accuracy === null
+                      ? "—"
+                      : `${(modelValidation.naive_split_accuracy * 100).toFixed(1)} %`}
+                  </span>
+                </p>
+                {[
+                  modelValidation.time_series_cv,
+                  modelValidation.purged_embargo_cv,
+                  modelValidation.nested_cv,
+                ].map((summary) => (
+                  <div
+                    key={summary.method}
+                    className="rounded-lg border border-white/10 bg-white/[0.02] p-3"
+                  >
+                    <p className="mb-1 font-medium text-[var(--muted)]">{summary.method}</p>
+                    <p className="text-[var(--muted)]">{summary.explanation}</p>
+                  </div>
+                ))}
+                <p className="text-[var(--muted)]">{modelValidation.explanation}</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {instrumentId !== "all" && (
+          <section className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-medium text-[var(--muted)]">
+                {t("registryTitle")}
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setAbTestLoading(true);
+                    setAbTestError(false);
+                    runModelAbTest(instrumentId, timeframe)
+                      .then(setAbTest)
+                      .catch(() => setAbTestError(true))
+                      .finally(() => setAbTestLoading(false));
+                  }}
+                  disabled={abTestLoading}
+                  className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {abTestLoading ? t("registryAbTesting") : t("registryAbTest")}
+                </button>
+                <button
+                  onClick={() => {
+                    setRegistryLoading(true);
+                    setRegistryError(false);
+                    getModelRegistry(instrumentId, timeframe)
+                      .then(setModelRegistry)
+                      .catch(() => setRegistryError(true))
+                      .finally(() => setRegistryLoading(false));
+                  }}
+                  disabled={registryLoading}
+                  className="brand-button rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {registryLoading ? t("registryChecking") : t("registryCheck")}
+                </button>
+              </div>
+            </div>
+            {registryError && (
+              <p className="text-sm text-red-400">{t("registryError")}</p>
+            )}
+            {abTestError && (
+              <p className="text-sm text-red-400">{t("registryAbTestError")}</p>
+            )}
+            {abTest && (
+              <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs">
+                <p className="mb-1 font-medium text-[var(--muted)]">
+                  {t("registryAbTestTitle")}
+                </p>
+                <p className="text-[var(--muted)]">{abTest.explanation}</p>
+              </div>
+            )}
+            {modelRegistry && (
+              <div className="space-y-2">
+                <p className="text-xs text-[var(--muted)]">{modelRegistry.explanation}</p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/10 text-left text-[var(--muted)]">
+                      <th className="py-1.5 pr-4">{t("registryVersion")}</th>
+                      <th className="py-1.5 pr-4">{t("registryChampionType")}</th>
+                      <th className="py-1.5 pr-4">XGBoost</th>
+                      <th className="py-1.5 pr-4">Régression logistique</th>
+                      <th className="py-1.5 pr-4">{t("registryStatus")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modelRegistry.versions.map((v) => (
+                      <tr key={v.version} className="border-b border-white/5">
+                        <td className="py-1.5 pr-4">{v.version}</td>
+                        <td className="py-1.5 pr-4">{v.champion_model_type}</td>
+                        <td className="py-1.5 pr-4">
+                          {(v.xgboost_accuracy * 100).toFixed(1)} %
+                        </td>
+                        <td className="py-1.5 pr-4">
+                          {(v.logistic_regression_accuracy * 100).toFixed(1)} %
+                        </td>
+                        <td className="py-1.5 pr-4">
+                          {v.is_champion ? (
+                            <span className="text-[var(--up)]">{t("registryChampion")}</span>
+                          ) : v.rolled_back ? (
+                            <span className="text-[var(--down)]">
+                              {t("registryRolledBack")}
+                            </span>
+                          ) : (
+                            <span className="text-[var(--muted)]">
+                              {t("registryChallenger")}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
 
         <p className="text-xs text-[var(--muted)]">{t("refreshHint")}</p>
       </main>

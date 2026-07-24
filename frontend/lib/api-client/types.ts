@@ -249,6 +249,365 @@ export interface SmcResponse {
   detections: SmcDetection[];
 }
 
+export interface EngineSignal {
+  engine: string;
+  direction: string;
+  score: number;
+  confidence: number;
+  explanation: string;
+}
+
+export interface RegimeSummary {
+  trend: string;
+  volatility: string;
+  is_trending: boolean;
+  is_panic: boolean;
+  label: string;
+}
+
+export interface MetaDecision {
+  instrument_id: number;
+  timeframe: string;
+  direction: string;
+  score: number;
+  confidence: number;
+  engines: EngineSignal[];
+  regime: RegimeSummary | null;
+  explanation: string;
+}
+
+export interface ConfidenceFactor {
+  name: string;
+  multiplier: number;
+  explanation: string;
+}
+
+export interface GlobalConfidence {
+  instrument_id: number;
+  timeframe: string;
+  direction: string;
+  score: number;
+  level: string;
+  base_confidence: number;
+  factors: ConfidenceFactor[];
+  explanation: string;
+}
+
+export interface PairCorrelation {
+  instrument_a: number;
+  symbol_a: string;
+  instrument_b: number;
+  symbol_b: string;
+  pearson: number | null;
+  spearman: number | null;
+  rolling: number | null;
+  dynamic: number | null;
+  sample_size: number;
+  explanation: string;
+}
+
+export interface CorrelationMatrix {
+  timeframe: string;
+  window: number;
+  instrument_ids: number[];
+  pairs: PairCorrelation[];
+  explanation: string;
+}
+
+export interface FeatureDrift {
+  feature: string;
+  psi: number | null;
+  severity: string;
+  explanation: string;
+}
+
+export interface LabelDrift {
+  reference_up_rate: number | null;
+  recent_up_rate: number | null;
+  delta: number | null;
+  severity: string;
+  explanation: string;
+}
+
+export interface ConceptDrift {
+  reference_accuracy: number | null;
+  recent_accuracy: number | null;
+  reference_n: number;
+  recent_n: number;
+  delta: number | null;
+  severity: string;
+  explanation: string;
+}
+
+export interface DriftReport {
+  instrument_id: number;
+  timeframe: string;
+  overall_severity: string;
+  feature_drifts: FeatureDrift[];
+  label_drift: LabelDrift;
+  concept_drift: ConceptDrift;
+  explanation: string;
+}
+
+export interface FoldResult {
+  fold: number;
+  train_size: number;
+  test_size: number;
+  accuracy: number | null;
+}
+
+export interface CvSummary {
+  method: string;
+  folds: FoldResult[];
+  mean_accuracy: number | null;
+  std_accuracy: number | null;
+  explanation: string;
+}
+
+export interface ModelValidation {
+  instrument_id: number;
+  timeframe: string;
+  naive_split_accuracy: number | null;
+  time_series_cv: CvSummary;
+  purged_embargo_cv: CvSummary;
+  nested_cv: CvSummary;
+  explanation: string;
+}
+
+export interface BootstrapResult {
+  mean: number;
+  ci_low: number;
+  ci_high: number;
+  confidence: number;
+  explanation: string;
+}
+
+export interface MonteCarloResult {
+  observed_return: number;
+  p_value: number;
+  null_mean: number;
+  null_std: number;
+  explanation: string;
+}
+
+export interface WhiteRealityCheckResult {
+  best_candidate_index: number;
+  best_mean_return: number;
+  p_value: number;
+  n_candidates: number;
+  explanation: string;
+}
+
+export interface BacktestValidation {
+  instrument_id: number;
+  timeframe: string;
+  bootstrap: BootstrapResult;
+  monte_carlo: MonteCarloResult;
+  reality_check: WhiteRealityCheckResult;
+  explanation: string;
+}
+
+export interface HpoTrial {
+  trial: number;
+  params: Record<string, number>;
+  value: number | null;
+}
+
+export interface HpoResult {
+  method: string;
+  best_params: Record<string, number>;
+  best_value: number | null;
+  n_trials: number;
+  trials: HpoTrial[];
+  explanation: string;
+}
+
+export type HpoMethod = "grid" | "random" | "bayesian_optuna" | "bayesian_hyperopt";
+
+export interface KellyResult {
+  fraction: number;
+  has_edge: boolean;
+  explanation: string;
+}
+
+export interface PositionSizeResult {
+  quantity: number;
+  risk_amount: number;
+  position_value: number;
+  capital_at_risk_pct: number;
+  explanation: string;
+}
+
+export interface StressScenario {
+  shock_pct: number;
+  resulting_value: number;
+  loss_amount: number;
+}
+
+export interface RiskProfile {
+  instrument_id: number;
+  timeframe: string;
+  var_95: number | null;
+  expected_shortfall_95: number | null;
+  max_drawdown: number;
+  annualized_volatility: number | null;
+  kelly: KellyResult;
+  risk_of_ruin: number;
+  position_sizing: PositionSizeResult;
+  stress_test: StressScenario[];
+  explanation: string;
+}
+
+export interface ExposureWarning {
+  instrument: string;
+  weight_pct: number;
+  limit_pct: number;
+  message: string;
+}
+
+export interface ExposureReport {
+  warnings: ExposureWarning[];
+  total_exposure_pct: number;
+  max_single_pct: number;
+  max_total_pct: number;
+  explanation: string;
+}
+
+export interface RiskBudgetItem {
+  instrument_id: number;
+  symbol: string;
+  current_weight_pct: number;
+  target_weight_pct: number;
+  annualized_volatility: number | null;
+}
+
+export interface RiskBudget {
+  items: RiskBudgetItem[];
+  explanation: string;
+}
+
+export interface FeatureContribution {
+  feature: string;
+  value: number;
+  contribution: number;
+}
+
+export interface ShapSnapshot {
+  prediction_id: number;
+  as_of: string;
+  predicted_direction: string;
+  contributions: FeatureContribution[];
+}
+
+export interface ShapHistory {
+  instrument_id: number;
+  timeframe: string;
+  snapshots: ShapSnapshot[];
+  explanation: string;
+}
+
+export interface GlobalImportanceItem {
+  feature: string;
+  mean_absolute_contribution: number;
+  rank: number;
+}
+
+export interface GlobalImportance {
+  instrument_id: number;
+  timeframe: string;
+  sample_size: number;
+  items: GlobalImportanceItem[];
+  explanation: string;
+}
+
+export interface FeatureTimePoint {
+  as_of: string;
+  contribution: number;
+}
+
+export interface FeatureEvolution {
+  instrument_id: number;
+  timeframe: string;
+  feature: string;
+  points: FeatureTimePoint[];
+  explanation: string;
+}
+
+export interface ExplanationDelta {
+  feature: string;
+  contribution_a: number;
+  contribution_b: number;
+  delta: number;
+}
+
+export interface ExplanationComparison {
+  prediction_id_a: number;
+  prediction_id_b: number;
+  similarity: number | null;
+  deltas: ExplanationDelta[];
+  explanation: string;
+}
+
+export interface ModelVersion {
+  version: number;
+  as_of: string;
+  champion_model_type: string;
+  xgboost_accuracy: number;
+  logistic_regression_accuracy: number;
+  ensemble_accuracy: number;
+  baseline_accuracy: number;
+  training_rows: number;
+  is_champion: boolean;
+  rolled_back: boolean;
+}
+
+export interface ModelRegistry {
+  instrument_id: number;
+  timeframe: string;
+  versions: ModelVersion[];
+  explanation: string;
+}
+
+export interface AbTestResult {
+  instrument_id: number;
+  timeframe: string;
+  winner: string;
+  xgboost_edge_mean: number;
+  xgboost_edge_ci_low: number;
+  xgboost_edge_ci_high: number;
+  logistic_regression_edge_mean: number;
+  logistic_regression_edge_ci_low: number;
+  logistic_regression_edge_ci_high: number;
+  sample_size: number;
+  explanation: string;
+}
+
+export interface VolumeProfileBucket {
+  price_low: number;
+  price_high: number;
+  volume: number;
+}
+
+export interface VolumeProfile {
+  instrument_id: number;
+  timeframe: string;
+  buckets: VolumeProfileBucket[];
+  point_of_control: VolumeProfileBucket | null;
+  explanation: string;
+}
+
+export interface MarketRegime {
+  instrument_id: number;
+  timeframe: string;
+  trend: string;
+  volatility: string;
+  is_trending: boolean;
+  is_panic: boolean;
+  confidence: number;
+  label: string;
+  explanation: string;
+}
+
 export interface NewsItem {
   source: string;
   title: string;

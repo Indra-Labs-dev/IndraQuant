@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from decimal import Decimal
 
@@ -82,12 +83,27 @@ def _to_instrument(model: InstrumentModel, exchange: ExchangeModel) -> Instrumen
 
 
 class SqlAlchemyInstrumentRepository:
+    """Instruments are seeded once at bootstrap and never mutated through
+    the API (no create/update/delete endpoint exists) — a short process-wide
+    cache is therefore both safe and free of invalidation concerns: a
+    backend restart is the only event that could change this list, and that
+    already clears the cache with it (docs/roadmap #11 — cache intelligent)."""
+
+    _list_cache: dict[tuple[str | None, str | None], tuple[float, list[Instrument]]] = {}
+    _get_cache: dict[int, tuple[float, Instrument | None]] = {}
+    _TTL_SECONDS = 300
+
     def __init__(self, session: Session) -> None:
         self._session = session
 
     def list_instruments(
         self, asset_class: str | None = None, exchange: str | None = None
     ) -> list[Instrument]:
+        cache_key = (asset_class, exchange)
+        cached = self._list_cache.get(cache_key)
+        if cached is not None and time.monotonic() - cached[0] < self._TTL_SECONDS:
+            return cached[1]
+
         query = (
             select(InstrumentModel, ExchangeModel)
             .join(ExchangeModel, InstrumentModel.exchange_id == ExchangeModel.id)
@@ -98,18 +114,26 @@ class SqlAlchemyInstrumentRepository:
             query = query.where(InstrumentModel.asset_class == asset_class)
         if exchange:
             query = query.where(ExchangeModel.ccxt_id == exchange)
-        return [
+        instruments = [
             _to_instrument(instrument, exch)
             for instrument, exch in self._session.execute(query)
         ]
+        self._list_cache[cache_key] = (time.monotonic(), instruments)
+        return instruments
 
     def get(self, instrument_id: int) -> Instrument | None:
+        cached = self._get_cache.get(instrument_id)
+        if cached is not None and time.monotonic() - cached[0] < self._TTL_SECONDS:
+            return cached[1]
+
         row = self._session.execute(
             select(InstrumentModel, ExchangeModel)
             .join(ExchangeModel, InstrumentModel.exchange_id == ExchangeModel.id)
             .where(InstrumentModel.id == instrument_id)
         ).first()
-        return _to_instrument(row[0], row[1]) if row else None
+        instrument = _to_instrument(row[0], row[1]) if row else None
+        self._get_cache[instrument_id] = (time.monotonic(), instrument)
+        return instrument
 
 
 class SqlAlchemyCandleStore:

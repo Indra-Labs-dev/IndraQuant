@@ -9,6 +9,7 @@ from src.modules.alert_center.infrastructure.sqlalchemy_repository import (
 )
 from src.modules.technical_analysis.application import service as ta
 from src.modules.technical_analysis.application.ports import OhlcvProvider
+from src.shared.events.event_bus import AlertTriggered, EventBus
 from src.shared.kernel.errors import NotFoundError
 
 _TIMEFRAME_SECONDS = {
@@ -95,10 +96,14 @@ class CheckAlertsUseCase:
     message."""
 
     def __init__(
-        self, repository: SqlAlchemyAlertRepository, ohlcv: OhlcvProvider
+        self,
+        repository: SqlAlchemyAlertRepository,
+        ohlcv: OhlcvProvider,
+        event_bus: EventBus | None = None,
     ) -> None:
         self._repository = repository
         self._ohlcv = ohlcv
+        self._event_bus = event_bus
 
     def execute(self) -> int:
         triggered = 0
@@ -147,4 +152,13 @@ class CheckAlertsUseCase:
                     f"({alert.timeframe})."
                 )
                 triggered += 1
+                if self._event_bus is not None:
+                    self._event_bus.publish(
+                        AlertTriggered(
+                            alert_id=alert.id,
+                            instrument_id=alert.instrument_id,
+                            message=alert.message,
+                            triggered_at=alert.triggered_at,
+                        )
+                    )
         return triggered

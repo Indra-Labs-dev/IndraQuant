@@ -13,10 +13,12 @@ const NAV_ITEMS = [
   { href: "/paper-trading", key: "paperTrading" },
   { href: "/portfolio", key: "portfolio" },
   { href: "/training", key: "training" },
+  { href: "/correlations", key: "correlations" },
   { href: "/news", key: "news" },
   { href: "/alerts", key: "alerts" },
   { href: "/assistant", key: "assistant" },
   { href: "/settings", key: "settings" },
+  { href: "/aide", key: "help" },
 ] as const;
 
 export function AppNav() {

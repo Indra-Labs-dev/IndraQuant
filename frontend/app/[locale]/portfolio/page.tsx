@@ -4,8 +4,16 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import { AppNav } from "@/components/layout/AppNav";
-import { getPortfolioSummary } from "@/lib/api-client/client";
-import type { PortfolioSummary } from "@/lib/api-client/types";
+import {
+  getExposureReport,
+  getPortfolioSummary,
+  getRiskBudget,
+} from "@/lib/api-client/client";
+import type {
+  ExposureReport,
+  PortfolioSummary,
+  RiskBudget,
+} from "@/lib/api-client/types";
 import { Link, useRouter } from "@/lib/i18n/navigation";
 import { useAuthHydrated, useAuthStore } from "@/lib/stores/auth";
 
@@ -26,6 +34,8 @@ export default function PortfolioPage() {
   const hydrated = useAuthHydrated();
 
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [exposure, setExposure] = useState<ExposureReport | null>(null);
+  const [riskBudget, setRiskBudget] = useState<RiskBudget | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,6 +63,29 @@ export default function PortfolioPage() {
       clearInterval(interval);
     };
   }, [token, t]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const refresh = () => {
+      getExposureReport()
+        .then((r) => {
+          if (!cancelled) setExposure(r);
+        })
+        .catch(() => {});
+      getRiskBudget()
+        .then((r) => {
+          if (!cancelled) setRiskBudget(r);
+        })
+        .catch(() => {});
+    };
+    refresh();
+    const interval = setInterval(refresh, REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [token]);
 
   const cardClass = "rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3";
 
@@ -186,6 +219,57 @@ export default function PortfolioPage() {
                 </table>
               </div>
             </div>
+
+            {exposure && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <h2 className="mb-3 text-sm font-medium text-[var(--muted)]">
+                  {t("exposureTitle")}
+                </h2>
+                {exposure.warnings.length === 0 ? (
+                  <p className="text-sm text-[var(--up)]">{t("exposureOk")}</p>
+                ) : (
+                  <ul className="space-y-1 text-sm text-[var(--accent-orange)]">
+                    {exposure.warnings.map((w, i) => (
+                      <li key={`${w.instrument}-${i}`}>{w.message}</li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-2 text-xs text-[var(--muted)]">{exposure.explanation}</p>
+              </div>
+            )}
+
+            {riskBudget && riskBudget.items.length > 0 && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <h2 className="mb-3 text-sm font-medium text-[var(--muted)]">
+                  {t("riskBudgetTitle")}
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="text-xs text-[var(--muted)]">
+                      <tr>
+                        <th className="py-1 pr-4">{t("columnInstrument")}</th>
+                        <th className="py-1 pr-4">{t("columnCurrentWeight")}</th>
+                        <th className="py-1 pr-4">{t("columnTargetWeight")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {riskBudget.items.map((item) => (
+                        <tr key={item.instrument_id} className="border-t border-white/5">
+                          <td className="py-1.5 pr-4">{item.symbol}</td>
+                          <td className="py-1.5 pr-4">
+                            {item.current_weight_pct.toFixed(1)} %
+                          </td>
+                          <td className="py-1.5 pr-4">
+                            {item.target_weight_pct.toFixed(1)} %
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-xs text-[var(--muted)]">{riskBudget.explanation}</p>
+              </div>
+            )}
 
             <p className="text-xs text-[var(--muted)]">{t("refresh")}</p>
           </>
