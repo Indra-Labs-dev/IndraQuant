@@ -13,8 +13,9 @@ from sqlalchemy import (
     func,
     select,
 )
-from sqlalchemy.dialects.mysql import insert as mysql_insert
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.modules.market_data.domain.entities import Candle, Instrument
 from src.modules.market_data.domain.value_objects import Timeframe
@@ -93,10 +94,10 @@ class SqlAlchemyInstrumentRepository:
     _get_cache: dict[int, tuple[float, Instrument | None]] = {}
     _TTL_SECONDS = 300
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def list_instruments(
+    async def list_instruments(
         self, asset_class: str | None = None, exchange: str | None = None
     ) -> list[Instrument]:
         cache_key = (asset_class, exchange)
@@ -114,33 +115,32 @@ class SqlAlchemyInstrumentRepository:
             query = query.where(InstrumentModel.asset_class == asset_class)
         if exchange:
             query = query.where(ExchangeModel.ccxt_id == exchange)
-        instruments = [
-            _to_instrument(instrument, exch)
-            for instrument, exch in self._session.execute(query)
-        ]
+        result = await self._session.execute(query)
+        instruments = [_to_instrument(instrument, exch) for instrument, exch in result]
         self._list_cache[cache_key] = (time.monotonic(), instruments)
         return instruments
 
-    def get(self, instrument_id: int) -> Instrument | None:
+    async def get(self, instrument_id: int) -> Instrument | None:
         cached = self._get_cache.get(instrument_id)
         if cached is not None and time.monotonic() - cached[0] < self._TTL_SECONDS:
             return cached[1]
 
-        row = self._session.execute(
+        result = await self._session.execute(
             select(InstrumentModel, ExchangeModel)
             .join(ExchangeModel, InstrumentModel.exchange_id == ExchangeModel.id)
             .where(InstrumentModel.id == instrument_id)
-        ).first()
+        )
+        row = result.first()
         instrument = _to_instrument(row[0], row[1]) if row else None
         self._get_cache[instrument_id] = (time.monotonic(), instrument)
         return instrument
 
 
 class SqlAlchemyCandleStore:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def get_range(
+    async def get_range(
         self,
         instrument_id: int,
         timeframe: Timeframe,
@@ -148,7 +148,7 @@ class SqlAlchemyCandleStore:
         end: datetime,
         limit: int,
     ) -> list[Candle]:
-        models = self._session.scalars(
+        models = await self._session.scalars(
             select(OhlcvCandleModel)
             .where(
                 OhlcvCandleModel.instrument_id == instrument_id,
@@ -171,32 +171,32 @@ class SqlAlchemyCandleStore:
             for m in models
         ]
 
-    def latest_open_time(
+    async def latest_open_time(
         self, instrument_id: int, timeframe: Timeframe
     ) -> datetime | None:
-        return self._session.scalar(
+        return await self._session.scalar(
             select(func.max(OhlcvCandleModel.open_time)).where(
                 OhlcvCandleModel.instrument_id == instrument_id,
                 OhlcvCandleModel.timeframe == timeframe.value,
             )
         )
 
-    def earliest_open_time(
+    async def earliest_open_time(
         self, instrument_id: int, timeframe: Timeframe
     ) -> datetime | None:
-        return self._session.scalar(
+        return await self._session.scalar(
             select(func.min(OhlcvCandleModel.open_time)).where(
                 OhlcvCandleModel.instrument_id == instrument_id,
                 OhlcvCandleModel.timeframe == timeframe.value,
             )
         )
 
-    def upsert_many(
+    async def upsert_many(
         self, instrument_id: int, timeframe: Timeframe, candles: list[Candle]
     ) -> int:
         if not candles:
             return 0
-        statement = mysql_insert(OhlcvCandleModel).values(
+        statement = pg_insert(OhlcvCandleModel).values(
             [
                 {
                     "instrument_id": instrument_id,
@@ -211,13 +211,16 @@ class SqlAlchemyCandleStore:
                 for c in candles
             ]
         )
-        statement = statement.on_duplicate_key_update(
-            open=statement.inserted.open,
-            high=statement.inserted.high,
-            low=statement.inserted.low,
-            close=statement.inserted.close,
-            volume=statement.inserted.volume,
+        statement = statement.on_conflict_do_update(
+            index_elements=["instrument_id", "timeframe", "open_time"],
+            set_={
+                "open": statement.excluded.open,
+                "high": statement.excluded.high,
+                "low": statement.excluded.low,
+                "close": statement.excluded.close,
+                "volume": statement.excluded.volume,
+            },
         )
-        self._session.execute(statement)
-        self._session.flush()
+        await self._session.execute(statement)
+        await self._session.flush()
         return len(candles)

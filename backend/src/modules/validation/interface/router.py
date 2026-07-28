@@ -22,19 +22,19 @@ router = APIRouter(tags=["validation"])
 
 
 @router.get("/instruments/{instrument_id}/model-validation")
-def get_model_validation(
+async def get_model_validation(
     instrument_id: int,
     timeframe: str = Query(default="1h"),
     _: UserProfile = Depends(get_current_user),
     use_case: ValidatePredictionModelUseCase = Depends(get_validate_model_use_case),
 ) -> ModelValidationResponse:
-    return use_case.execute(instrument_id, timeframe)
+    return await use_case.execute(instrument_id, timeframe)
 
 
 @router.post("/backtests/validation")
-def validate_backtest(
+async def validate_backtest(
     request: RunBacktestRequest,
     _: UserProfile = Depends(get_current_user),
     use_case: ValidateBacktestUseCase = Depends(get_validate_backtest_use_case),
 ) -> BacktestValidationResponse:
-    return use_case.execute(request)
+    return await use_case.execute(request)

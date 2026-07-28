@@ -6,9 +6,10 @@ class ListInstrumentsUseCase:
     def __init__(self, instruments: InstrumentRepository) -> None:
         self._instruments = instruments
 
-    def execute(
+    async def execute(
         self, asset_class: str | None = None, exchange: str | None = None
     ) -> InstrumentsResponse:
+        instruments = await self._instruments.list_instruments(asset_class, exchange)
         return InstrumentsResponse(
             instruments=[
                 InstrumentDto(
@@ -17,7 +18,7 @@ class ListInstrumentsUseCase:
                     exchange=i.exchange_ccxt_id,
                     asset_class=i.asset_class,
                 )
-                for i in self._instruments.list_instruments(asset_class, exchange)
+                for i in instruments
                 if i.is_active
             ]
         )

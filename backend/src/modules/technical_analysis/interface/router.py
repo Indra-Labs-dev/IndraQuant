@@ -23,7 +23,7 @@ router = APIRouter(prefix="/instruments", tags=["technical-analysis"])
 
 
 @router.get("/{instrument_id}/indicators")
-def get_indicators(
+async def get_indicators(
     instrument_id: int,
     timeframe: str = Query(),
     from_: datetime = Query(alias="from"),
@@ -37,11 +37,11 @@ def get_indicators(
     use_case: ComputeIndicatorsUseCase = Depends(get_compute_indicators_use_case),
 ) -> IndicatorsResponse:
     specs = [s for s in indicators.split(",") if s.strip()]
-    return use_case.execute(instrument_id, timeframe, from_, to, limit, specs)
+    return await use_case.execute(instrument_id, timeframe, from_, to, limit, specs)
 
 
 @router.get("/{instrument_id}/volume-profile")
-def get_volume_profile(
+async def get_volume_profile(
     instrument_id: int,
     timeframe: str = Query(),
     from_: datetime = Query(alias="from"),
@@ -51,4 +51,4 @@ def get_volume_profile(
     _: UserProfile = Depends(get_current_user),
     use_case: GetVolumeProfileUseCase = Depends(get_volume_profile_use_case),
 ) -> VolumeProfileResponse:
-    return use_case.execute(instrument_id, timeframe, from_, to, limit, bins)
+    return await use_case.execute(instrument_id, timeframe, from_, to, limit, bins)

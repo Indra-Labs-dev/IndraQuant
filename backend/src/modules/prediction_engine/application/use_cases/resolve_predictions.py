@@ -24,10 +24,10 @@ class ResolvePredictionsUseCase:
         self._repository = repository
         self._ohlcv = ohlcv
 
-    def execute(self) -> int:
+    async def execute(self) -> int:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         resolved = 0
-        for prediction in self._repository.list_unresolved_ready(now):
+        for prediction in await self._repository.list_unresolved_ready(now):
             seconds = _TIMEFRAME_SECONDS.get(prediction.timeframe, 3_600)
             # Only trust the target candle's close once its own duration has
             # fully elapsed (not mid-formation).
@@ -35,7 +35,7 @@ class ResolvePredictionsUseCase:
                 continue
 
             try:
-                response = self._ohlcv.execute(
+                response = await self._ohlcv.execute(
                     prediction.instrument_id,
                     prediction.timeframe,
                     prediction.as_of - timedelta(seconds=seconds),

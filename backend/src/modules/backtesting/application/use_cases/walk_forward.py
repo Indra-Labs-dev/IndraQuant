@@ -21,8 +21,8 @@ class WalkForwardUseCase:
     def __init__(self, ohlcv: OhlcvProvider) -> None:
         self._ohlcv = ohlcv
 
-    def execute(self, request: WalkForwardRequest) -> WalkForwardReport:
-        response = self._ohlcv.execute(
+    async def execute(self, request: WalkForwardRequest) -> WalkForwardReport:
+        response = await self._ohlcv.execute(
             request.instrument_id, request.timeframe, request.from_, request.to, 5000
         )
         candles = [

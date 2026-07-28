@@ -16,8 +16,8 @@ class RollbackModelUseCase:
     def __init__(self, versions: SqlAlchemyModelVersionRepository) -> None:
         self._versions = versions
 
-    def execute(self, instrument_id: int, timeframe: str, version: int) -> RollbackResponse:
-        target = self._versions.get_by_version(instrument_id, timeframe, version)
+    async def execute(self, instrument_id: int, timeframe: str, version: int) -> RollbackResponse:
+        target = await self._versions.get_by_version(instrument_id, timeframe, version)
         if target is None:
             raise AppError(
                 "model_version_not_found",
@@ -25,8 +25,8 @@ class RollbackModelUseCase:
                 404,
             )
 
-        self._versions.set_champion(instrument_id, timeframe, version)
-        self._versions.mark_rolled_back_after(instrument_id, timeframe, version)
+        await self._versions.set_champion(instrument_id, timeframe, version)
+        await self._versions.mark_rolled_back_after(instrument_id, timeframe, version)
 
         return RollbackResponse(
             instrument_id=instrument_id,

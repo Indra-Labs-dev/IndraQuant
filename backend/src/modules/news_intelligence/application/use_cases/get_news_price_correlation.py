@@ -25,8 +25,8 @@ class GetNewsPriceCorrelationUseCase:
         self._sentiment = sentiment
         self._ohlcv = ohlcv
 
-    def execute(self, instrument_id: int, days: int = 14) -> NewsPriceCorrelationResponse:
-        sentiment = self._sentiment.execute(limit=_SENTIMENT_HEADLINE_LIMIT)
+    async def execute(self, instrument_id: int, days: int = 14) -> NewsPriceCorrelationResponse:
+        sentiment = await self._sentiment.execute(limit=_SENTIMENT_HEADLINE_LIMIT)
 
         daily_sentiment: dict = defaultdict(list)
         for item in sentiment.items:
@@ -36,7 +36,7 @@ class GetNewsPriceCorrelationUseCase:
 
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days + 2)
-        response = self._ohlcv.execute(instrument_id, "1d", start, end, 200)
+        response = await self._ohlcv.execute(instrument_id, "1d", start, end, 200)
         closes_by_day = {c.open_time.date(): c.close for c in response.candles}
         sorted_days = sorted(closes_by_day.keys())
 

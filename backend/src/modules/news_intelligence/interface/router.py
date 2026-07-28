@@ -31,37 +31,37 @@ router = APIRouter(prefix="/news", tags=["news"])
 
 
 @router.get("")
-def get_news(
+async def get_news(
     limit: int = Query(default=20, ge=1, le=50),
     _: UserProfile = Depends(get_current_user),
     use_case: GetNewsUseCase = Depends(get_news_use_case),
 ) -> NewsResponse:
-    return use_case.execute(limit)
+    return await use_case.execute(limit)
 
 
 @router.get("/sentiment")
-def get_sentiment(
+async def get_sentiment(
     limit: int = Query(default=10, ge=1, le=20),
     _: UserProfile = Depends(get_current_user),
     use_case: AnalyzeNewsSentimentUseCase = Depends(get_analyze_sentiment_use_case),
 ) -> SentimentResponse:
-    return use_case.execute(limit)
+    return await use_case.execute(limit)
 
 
 @router.get("/intelligence")
-def get_news_intelligence(
+async def get_news_intelligence(
     limit: int = Query(default=30, ge=5, le=90),
     _: UserProfile = Depends(get_current_user),
     use_case: AnalyzeNewsIntelligenceUseCase = Depends(get_news_intelligence_use_case),
 ) -> NewsIntelligenceResponse:
-    return use_case.execute(limit)
+    return await use_case.execute(limit)
 
 
 @router.get("/price-correlation/{instrument_id}")
-def get_news_price_correlation(
+async def get_news_price_correlation(
     instrument_id: int,
     days: int = Query(default=14, ge=5, le=60),
     _: UserProfile = Depends(get_current_user),
     use_case: GetNewsPriceCorrelationUseCase = Depends(get_news_price_correlation_use_case),
 ) -> NewsPriceCorrelationResponse:
-    return use_case.execute(instrument_id, days)
+    return await use_case.execute(instrument_id, days)

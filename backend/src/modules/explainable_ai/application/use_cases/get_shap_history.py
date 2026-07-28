@@ -29,20 +29,20 @@ class GetShapHistoryUseCase:
         self._predictions = predictions
         self._cache = cache
 
-    def execute(
+    async def execute(
         self, instrument_id: int, timeframe: str, limit: int = _DEFAULT_LIMIT
     ) -> ShapHistoryResponse:
-        latest_id = self._predictions.get_latest_id(instrument_id, timeframe)
+        latest_id = await self._predictions.get_latest_id(instrument_id, timeframe)
         cache_key = f"shap-history:{instrument_id}:{timeframe}:{limit}:{latest_id}"
         if self._cache is not None:
             try:
-                cached = self._cache.get(cache_key)
+                cached = await self._cache.get(cache_key)
                 if cached:
                     return ShapHistoryResponse.model_validate_json(cached)
             except Exception:
                 pass
 
-        records = self._predictions.list_recent(instrument_id, timeframe, limit)
+        records = await self._predictions.list_recent(instrument_id, timeframe, limit)
         snapshots = []
         for record in records:
             contributions = parse_contributions(record.shap_json)
@@ -82,7 +82,7 @@ class GetShapHistoryUseCase:
         )
         if self._cache is not None:
             try:
-                self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+                await self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
             except Exception:
                 pass
         return response

@@ -24,12 +24,20 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import all module models so autogenerate sees the full schema.
+from src.modules.alert_center.infrastructure.sqlalchemy_repository import AlertModel  # noqa: F401,E402
 from src.modules.auth.infrastructure.sqlalchemy_repository import UserModel  # noqa: F401,E402
+from src.modules.backtesting.infrastructure.sqlalchemy_repository import BacktestRunModel  # noqa: F401,E402
 from src.modules.market_data.infrastructure.sqlalchemy_repository import (  # noqa: F401,E402
     ExchangeModel,
     InstrumentModel,
     OhlcvCandleModel,
 )
+from src.modules.model_registry.infrastructure.sqlalchemy_repository import ModelVersionModel  # noqa: F401,E402
+from src.modules.paper_trading.infrastructure.sqlalchemy_repository import (  # noqa: F401,E402
+    PaperSessionModel,
+    PaperTradeModel,
+)
+from src.modules.prediction_engine.infrastructure.sqlalchemy_repository import PredictionModel  # noqa: F401,E402
 from src.modules.settings.infrastructure.sqlalchemy_repository import SettingModel  # noqa: F401,E402
 from src.shared.infrastructure.database import Base  # noqa: E402
 

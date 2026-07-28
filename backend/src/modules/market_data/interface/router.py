@@ -23,26 +23,26 @@ router = APIRouter(prefix="/instruments", tags=["market-data"])
 
 
 @router.get("")
-def list_instruments(
+async def list_instruments(
     asset_class: str | None = Query(default=None),
     exchange: str | None = Query(default=None),
     _: UserProfile = Depends(get_current_user),
     use_case: ListInstrumentsUseCase = Depends(get_list_instruments_use_case),
 ) -> InstrumentsResponse:
-    return use_case.execute(asset_class, exchange)
+    return await use_case.execute(asset_class, exchange)
 
 
 @router.get("/{instrument_id}/market-status")
-def get_market_status(
+async def get_market_status(
     instrument_id: int,
     _: UserProfile = Depends(get_current_user),
     use_case: GetMarketStatusUseCase = Depends(get_market_status_use_case),
 ) -> MarketStatusResponse:
-    return use_case.execute(instrument_id)
+    return await use_case.execute(instrument_id)
 
 
 @router.get("/{instrument_id}/ohlcv")
-def get_ohlcv(
+async def get_ohlcv(
     instrument_id: int,
     timeframe: str = Query(),
     from_: datetime = Query(alias="from"),
@@ -51,4 +51,4 @@ def get_ohlcv(
     _: UserProfile = Depends(get_current_user),
     use_case: GetOhlcvUseCase = Depends(get_ohlcv_use_case),
 ) -> OhlcvResponse:
-    return use_case.execute(instrument_id, timeframe, from_, to, limit)
+    return await use_case.execute(instrument_id, timeframe, from_, to, limit)

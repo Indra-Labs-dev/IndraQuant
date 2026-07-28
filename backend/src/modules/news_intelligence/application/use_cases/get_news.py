@@ -33,11 +33,11 @@ class GetNewsUseCase:
         self._cache = cache
         self._event_bus = event_bus
 
-    def execute(self, limit: int = 20) -> NewsResponse:
+    async def execute(self, limit: int = 20) -> NewsResponse:
         cache_key = f"news:headlines:{limit}"
         if self._cache is not None:
             try:
-                cached = self._cache.get(cache_key)
+                cached = await self._cache.get(cache_key)
                 if cached:
                     return NewsResponse(**json.loads(cached))
             except Exception:
@@ -53,7 +53,7 @@ class GetNewsUseCase:
 
         if self._cache is not None:
             try:
-                self._cache.set(
+                await self._cache.set(
                     cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS
                 )
             except Exception:

@@ -19,18 +19,19 @@ class ManageTrainingUseCase:
         self._runner = runner
         self._instruments = instruments
 
-    def start(self, timeframe: str, instrument_ids: list[int]) -> TrainingSessionsResponse:
+    async def start(self, timeframe: str, instrument_ids: list[int]) -> TrainingSessionsResponse:
         for instrument_id in instrument_ids:
             self._runner.start(instrument_id, timeframe)
-        return self.list_sessions()
+        return await self.list_sessions()
 
-    def stop(self, timeframe: str, instrument_ids: list[int]) -> TrainingSessionsResponse:
+    async def stop(self, timeframe: str, instrument_ids: list[int]) -> TrainingSessionsResponse:
         for instrument_id in instrument_ids:
             self._runner.stop(instrument_id, timeframe)
-        return self.list_sessions()
+        return await self.list_sessions()
 
-    def list_sessions(self) -> TrainingSessionsResponse:
-        symbols = {i.id: i.symbol for i in self._instruments.list_instruments()}
+    async def list_sessions(self) -> TrainingSessionsResponse:
+        all_instruments = await self._instruments.list_instruments()
+        symbols = {i.id: i.symbol for i in all_instruments}
         return TrainingSessionsResponse(
             sessions=[
                 TrainingSessionInfo(

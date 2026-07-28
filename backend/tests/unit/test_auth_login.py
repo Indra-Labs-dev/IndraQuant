@@ -17,13 +17,13 @@ class FakeUserRepository:
     def __init__(self, users: list[User]) -> None:
         self._users = users
 
-    def get_by_email(self, email: str) -> User | None:
+    async def get_by_email(self, email: str) -> User | None:
         return next((u for u in self._users if u.email == email), None)
 
-    def get_by_id(self, user_id: int) -> User | None:
+    async def get_by_id(self, user_id: int) -> User | None:
         return next((u for u in self._users if u.id == user_id), None)
 
-    def add(self, email: str, password_hash: str) -> User:
+    async def add(self, email: str, password_hash: str) -> User:
         raise NotImplementedError
 
 
@@ -47,30 +47,30 @@ def make_use_case(users: list[User] | None = None) -> LoginUseCase:
     return LoginUseCase(FakeUserRepository(users or [USER]), FakeHasher(), FakeTokens())
 
 
-def test_login_returns_token_for_valid_credentials():
-    response = make_use_case().execute(LoginRequest(email="a@b.c", password="secret"))
+async def test_login_returns_token_for_valid_credentials():
+    response = await make_use_case().execute(LoginRequest(email="a@b.c", password="secret"))
     assert response.access_token == "token-1"
     assert response.token_type == "bearer"
 
 
-def test_login_rejects_wrong_password():
+async def test_login_rejects_wrong_password():
     with pytest.raises(UnauthorizedError):
-        make_use_case().execute(LoginRequest(email="a@b.c", password="wrong"))
+        await make_use_case().execute(LoginRequest(email="a@b.c", password="wrong"))
 
 
-def test_login_rejects_unknown_email():
+async def test_login_rejects_unknown_email():
     with pytest.raises(UnauthorizedError):
-        make_use_case().execute(LoginRequest(email="x@y.z", password="secret"))
+        await make_use_case().execute(LoginRequest(email="x@y.z", password="secret"))
 
 
-def test_get_current_user_resolves_valid_token():
+async def test_get_current_user_resolves_valid_token():
     use_case = GetCurrentUserUseCase(FakeUserRepository([USER]), FakeTokens())
-    profile = use_case.execute("token-1")
+    profile = await use_case.execute("token-1")
     assert profile.id == 1
     assert profile.email == "a@b.c"
 
 
-def test_get_current_user_rejects_invalid_token():
+async def test_get_current_user_rejects_invalid_token():
     use_case = GetCurrentUserUseCase(FakeUserRepository([USER]), FakeTokens())
     with pytest.raises(UnauthorizedError):
-        use_case.execute("garbage")
+        await use_case.execute("garbage")

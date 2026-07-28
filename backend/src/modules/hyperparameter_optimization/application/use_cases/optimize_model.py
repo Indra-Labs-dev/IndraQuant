@@ -40,11 +40,11 @@ class OptimizeModelHyperparametersUseCase:
     def __init__(self, ohlcv: OhlcvProvider) -> None:
         self._ohlcv = ohlcv
 
-    def execute(self, request: OptimizeModelRequest) -> HpoResultDto:
+    async def execute(self, request: OptimizeModelRequest) -> HpoResultDto:
         seconds = _TIMEFRAME_SECONDS.get(request.timeframe, 3_600)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * _TRAINING_CANDLES)
-        response = self._ohlcv.execute(request.instrument_id, request.timeframe, start, end, 5000)
+        response = await self._ohlcv.execute(request.instrument_id, request.timeframe, start, end, 5000)
 
         closes = [c.close for c in response.candles]
         volumes = [c.volume for c in response.candles]

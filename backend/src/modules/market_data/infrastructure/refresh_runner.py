@@ -1,7 +1,5 @@
 import asyncio
-from typing import Callable
-
-from starlette.concurrency import run_in_threadpool
+from typing import Awaitable, Callable
 
 _CYCLE_SECONDS = 300
 
@@ -14,7 +12,7 @@ class MarketDataRefreshRunner:
     tested read-through ingestion in `GetOhlcvUseCase` — this runner is
     just a scheduler, no ingestion logic of its own."""
 
-    def __init__(self, refresh_all: Callable[[], int]) -> None:
+    def __init__(self, refresh_all: Callable[[], Awaitable[int]]) -> None:
         self._refresh_all = refresh_all
         self._task: asyncio.Task | None = None
 
@@ -31,7 +29,7 @@ class MarketDataRefreshRunner:
         try:
             while True:
                 try:
-                    await run_in_threadpool(self._refresh_all)
+                    await self._refresh_all()
                 except Exception:
                     pass
                 await asyncio.sleep(_CYCLE_SECONDS)

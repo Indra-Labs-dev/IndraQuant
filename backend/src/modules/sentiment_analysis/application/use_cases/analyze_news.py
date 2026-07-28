@@ -37,17 +37,18 @@ class AnalyzeNewsSentimentUseCase:
         self._ollama = ollama
         self._cache = cache
 
-    def execute(self, limit: int = 10) -> SentimentResponse:
+    async def execute(self, limit: int = 10) -> SentimentResponse:
         cache_key = f"sentiment:news:{limit}"
         if self._cache is not None:
             try:
-                cached = self._cache.get(cache_key)
+                cached = await self._cache.get(cache_key)
                 if cached:
                     return SentimentResponse(**json.loads(cached))
             except Exception:
                 pass
 
-        news = self._news.execute(limit).items
+        news_response = await self._news.execute(limit)
+        news = news_response.items
         if not news:
             raise AppError("no_news", "Aucune actualité récupérée.", 502)
 
@@ -81,7 +82,7 @@ class AnalyzeNewsSentimentUseCase:
         response = SentimentResponse(
             items=items,
             average_score=round(average, 3),
-            model="llama3.1:8b (Ollama, local)",
+            model="qwen3.5:9b (Ollama, local)",
             explanation=(
                 f"Sentiment agrégé {tone} (score moyen {average:+.2f} sur "
                 f"{len(items)} titres). Chaque titre est classé par un modèle "
@@ -92,7 +93,7 @@ class AnalyzeNewsSentimentUseCase:
 
         if self._cache is not None:
             try:
-                self._cache.set(
+                await self._cache.set(
                     cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS
                 )
             except Exception:

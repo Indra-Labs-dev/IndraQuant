@@ -66,8 +66,8 @@ class ManageAlertsUseCase:
     def __init__(self, repository: SqlAlchemyAlertRepository) -> None:
         self._repository = repository
 
-    def create(self, request: CreateAlertRequest) -> AlertDto:
-        model = self._repository.add(
+    async def create(self, request: CreateAlertRequest) -> AlertDto:
+        model = await self._repository.add(
             AlertModel(
                 instrument_id=request.instrument_id,
                 timeframe=request.timeframe,
@@ -78,16 +78,16 @@ class ManageAlertsUseCase:
         )
         return _dto(model)
 
-    def list_alerts(self) -> AlertsResponse:
+    async def list_alerts(self) -> AlertsResponse:
         return AlertsResponse(
-            alerts=[_dto(m) for m in self._repository.list_all()]
+            alerts=[_dto(m) for m in await self._repository.list_all()]
         )
 
-    def delete(self, alert_id: int) -> None:
-        model = self._repository.get(alert_id)
+    async def delete(self, alert_id: int) -> None:
+        model = await self._repository.get(alert_id)
         if model is None:
             raise NotFoundError("alert_not_found", f"Alerte {alert_id} inconnue.")
-        self._repository.delete(model)
+        await self._repository.delete(model)
 
 
 class CheckAlertsUseCase:
@@ -105,14 +105,14 @@ class CheckAlertsUseCase:
         self._ohlcv = ohlcv
         self._event_bus = event_bus
 
-    def execute(self) -> int:
+    async def execute(self) -> int:
         triggered = 0
-        for alert in self._repository.list_active():
+        for alert in await self._repository.list_active():
             seconds = _TIMEFRAME_SECONDS.get(alert.timeframe, 60)
             end = datetime.now(timezone.utc)
             start = end - timedelta(seconds=seconds * 40)
             try:
-                response = self._ohlcv.execute(
+                response = await self._ohlcv.execute(
                     alert.instrument_id, alert.timeframe, start, end, 5000
                 )
             except Exception:

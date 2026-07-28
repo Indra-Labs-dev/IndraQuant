@@ -1,7 +1,8 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, String, func, select
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.modules.auth.domain.entities import User
 from src.shared.infrastructure.database import Base
@@ -28,19 +29,19 @@ def _to_entity(model: UserModel) -> User:
 
 
 class SqlAlchemyUserRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def get_by_email(self, email: str) -> User | None:
-        model = self._session.scalar(select(UserModel).where(UserModel.email == email))
+    async def get_by_email(self, email: str) -> User | None:
+        model = await self._session.scalar(select(UserModel).where(UserModel.email == email))
         return _to_entity(model) if model else None
 
-    def get_by_id(self, user_id: int) -> User | None:
-        model = self._session.get(UserModel, user_id)
+    async def get_by_id(self, user_id: int) -> User | None:
+        model = await self._session.get(UserModel, user_id)
         return _to_entity(model) if model else None
 
-    def add(self, email: str, password_hash: str) -> User:
+    async def add(self, email: str, password_hash: str) -> User:
         model = UserModel(email=email, password_hash=password_hash)
         self._session.add(model)
-        self._session.flush()
+        await self._session.flush()
         return _to_entity(model)

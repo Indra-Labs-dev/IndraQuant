@@ -19,12 +19,12 @@ class GetExposureReportUseCase:
     def __init__(self, portfolio_summary: GetPortfolioSummaryUseCase) -> None:
         self._portfolio_summary = portfolio_summary
 
-    def execute(
+    async def execute(
         self,
         max_single_pct: float = _DEFAULT_MAX_SINGLE_PCT,
         max_total_pct: float = _DEFAULT_MAX_TOTAL_PCT,
     ) -> ExposureReportResponse:
-        summary = self._portfolio_summary.execute()
+        summary = await self._portfolio_summary.execute()
         allocations = [(a.symbol, a.weight_pct) for a in summary.allocation]
         warnings, total = check_exposure(allocations, max_single_pct, max_total_pct)
 

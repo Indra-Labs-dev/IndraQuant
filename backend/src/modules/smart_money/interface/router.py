@@ -13,7 +13,7 @@ router = APIRouter(prefix="/instruments", tags=["smart-money"])
 
 
 @router.get("/{instrument_id}/smc")
-def get_smc(
+async def get_smc(
     instrument_id: int,
     timeframe: str = Query(),
     from_: datetime = Query(alias="from"),
@@ -22,4 +22,4 @@ def get_smc(
     _: UserProfile = Depends(get_current_user),
     use_case: DetectSmcUseCase = Depends(get_detect_smc_use_case),
 ) -> SmcResponse:
-    return use_case.execute(instrument_id, timeframe, from_, to, limit)
+    return await use_case.execute(instrument_id, timeframe, from_, to, limit)

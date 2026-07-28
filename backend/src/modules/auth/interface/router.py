@@ -8,11 +8,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login")
-def login(
+async def login(
     request: LoginRequest,
     use_case: LoginUseCase = Depends(get_login_use_case),
 ) -> LoginResponse:
-    return use_case.execute(request)
+    return await use_case.execute(request)
 
 
 @router.post("/logout")

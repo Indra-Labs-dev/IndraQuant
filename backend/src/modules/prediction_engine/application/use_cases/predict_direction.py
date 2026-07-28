@@ -70,11 +70,11 @@ class PredictDirectionUseCase:
         self._event_bus = event_bus
         self._model_registry = model_registry
 
-    def execute(self, instrument_id: int, timeframe: str) -> DirectionPrediction:
+    async def execute(self, instrument_id: int, timeframe: str) -> DirectionPrediction:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * _TRAINING_CANDLES)
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, 5000)
+        response = await self._ohlcv.execute(instrument_id, timeframe, start, end, 5000)
 
         # Keying the cache on the actual last-closed candle (rather than a
         # fixed time window) means a request is only ever served a stale
@@ -87,7 +87,7 @@ class PredictDirectionUseCase:
         )
         if self._cache is not None:
             try:
-                cached = self._cache.get(cache_key)
+                cached = await self._cache.get(cache_key)
                 if cached:
                     return DirectionPrediction(**json.loads(cached))
             except Exception:
@@ -147,7 +147,7 @@ class PredictDirectionUseCase:
 
         if self._model_registry is not None:
             try:
-                self._model_registry.execute(
+                await self._model_registry.execute(
                     instrument_id,
                     timeframe,
                     as_of,
@@ -160,7 +160,7 @@ class PredictDirectionUseCase:
             except Exception:
                 pass
 
-        track_record, price_resolved, price_coverage = self._record_and_get_track_record(
+        track_record, price_resolved, price_coverage = await self._record_and_get_track_record(
             instrument_id,
             timeframe,
             as_of,
@@ -280,7 +280,7 @@ class PredictDirectionUseCase:
         if self._cache is not None:
             try:
                 ttl = min(max(seconds * 2, _CACHE_MIN_TTL_SECONDS), _CACHE_MAX_TTL_SECONDS)
-                self._cache.set(cache_key, prediction.model_dump_json(), ex=ttl)
+                await self._cache.set(cache_key, prediction.model_dump_json(), ex=ttl)
             except Exception:
                 pass
 
@@ -296,7 +296,7 @@ class PredictDirectionUseCase:
             )
         return prediction
 
-    def _record_and_get_track_record(
+    async def _record_and_get_track_record(
         self,
         instrument_id: int,
         timeframe: str,
@@ -327,8 +327,8 @@ class PredictDirectionUseCase:
             )
 
         as_of_naive, target_naive = _naive(as_of), _naive(target_time)
-        if self._predictions.get_by_as_of(instrument_id, timeframe, as_of_naive) is None:
-            self._predictions.add(
+        if await self._predictions.get_by_as_of(instrument_id, timeframe, as_of_naive) is None:
+            await self._predictions.add(
                 PredictionModel(
                     instrument_id=instrument_id,
                     timeframe=timeframe,
@@ -346,13 +346,13 @@ class PredictDirectionUseCase:
                 )
             )
 
-        bucket_resolved, bucket_accuracy = self._predictions.calibration_stats(
+        bucket_resolved, bucket_accuracy = await self._predictions.calibration_stats(
             timeframe, low, high
         )
-        overall_resolved, overall_accuracy = self._predictions.overall_accuracy(
+        overall_resolved, overall_accuracy = await self._predictions.overall_accuracy(
             timeframe
         )
-        price_resolved, price_coverage = self._predictions.price_calibration_stats(
+        price_resolved, price_coverage = await self._predictions.price_calibration_stats(
             timeframe
         )
         return (

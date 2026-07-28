@@ -18,10 +18,10 @@ class RunAbTestUseCase:
     def __init__(self, versions: SqlAlchemyModelVersionRepository) -> None:
         self._versions = versions
 
-    def execute(
+    async def execute(
         self, instrument_id: int, timeframe: str, limit: int = _DEFAULT_LIMIT
     ) -> AbTestResponse:
-        records = self._versions.list_versions(instrument_id, timeframe, limit)
+        records = await self._versions.list_versions(instrument_id, timeframe, limit)
         if not records:
             raise AppError(
                 "no_model_versions",

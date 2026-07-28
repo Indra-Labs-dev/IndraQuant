@@ -30,47 +30,47 @@ class TrainingSessionRequest(BaseModel):
 
 
 @router.get("/instruments/{instrument_id}/prediction")
-def get_prediction(
+async def get_prediction(
     instrument_id: int,
     timeframe: str = Query(default="1h"),
     _: UserProfile = Depends(get_current_user),
     use_case: PredictDirectionUseCase = Depends(get_predict_direction_use_case),
 ) -> DirectionPrediction:
-    return use_case.execute(instrument_id, timeframe)
+    return await use_case.execute(instrument_id, timeframe)
 
 
 @router.get("/predictions/dashboard")
-def get_prediction_dashboard(
+async def get_prediction_dashboard(
     timeframe: str = Query(default="1h"),
     instrument_id: int | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     _: UserProfile = Depends(get_current_user),
     use_case: GetPredictionDashboardUseCase = Depends(get_prediction_dashboard_use_case),
 ) -> PredictionDashboard:
-    return use_case.execute(timeframe, instrument_id, limit)
+    return await use_case.execute(timeframe, instrument_id, limit)
 
 
 @router.post("/training/start")
-def start_training(
+async def start_training(
     request: TrainingSessionRequest,
     _: UserProfile = Depends(get_current_user),
     use_case: ManageTrainingUseCase = Depends(get_manage_training_use_case),
 ) -> TrainingSessionsResponse:
-    return use_case.start(request.timeframe, request.instrument_ids)
+    return await use_case.start(request.timeframe, request.instrument_ids)
 
 
 @router.post("/training/stop")
-def stop_training(
+async def stop_training(
     request: TrainingSessionRequest,
     _: UserProfile = Depends(get_current_user),
     use_case: ManageTrainingUseCase = Depends(get_manage_training_use_case),
 ) -> TrainingSessionsResponse:
-    return use_case.stop(request.timeframe, request.instrument_ids)
+    return await use_case.stop(request.timeframe, request.instrument_ids)
 
 
 @router.get("/training/sessions")
-def get_training_sessions(
+async def get_training_sessions(
     _: UserProfile = Depends(get_current_user),
     use_case: ManageTrainingUseCase = Depends(get_manage_training_use_case),
 ) -> TrainingSessionsResponse:
-    return use_case.list_sessions()
+    return await use_case.list_sessions()

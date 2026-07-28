@@ -11,10 +11,10 @@ router = APIRouter(tags=["market-regime"])
 
 
 @router.get("/instruments/{instrument_id}/market-regime")
-def get_market_regime(
+async def get_market_regime(
     instrument_id: int,
     timeframe: str = Query(default="1h"),
     _: UserProfile = Depends(get_current_user),
     use_case: GetMarketRegimeUseCase = Depends(get_market_regime_use_case),
 ) -> MarketRegimeResponse:
-    return use_case.execute(instrument_id, timeframe)
+    return await use_case.execute(instrument_id, timeframe)

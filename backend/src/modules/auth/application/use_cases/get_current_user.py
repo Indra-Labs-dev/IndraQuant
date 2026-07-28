@@ -9,9 +9,9 @@ class GetCurrentUserUseCase:
         self._users = users
         self._tokens = tokens
 
-    def execute(self, token: str) -> UserProfile:
+    async def execute(self, token: str) -> UserProfile:
         user_id = self._tokens.verify(token)
-        user = self._users.get_by_id(user_id) if user_id is not None else None
+        user = await self._users.get_by_id(user_id) if user_id is not None else None
         if user is None:
             raise UnauthorizedError("invalid_token", "Session invalide ou expirée.")
         return UserProfile(id=user.id, email=user.email)

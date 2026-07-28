@@ -57,7 +57,7 @@ class OptimizeStrategyUseCase:
     def __init__(self, ohlcv: OhlcvProvider) -> None:
         self._ohlcv = ohlcv
 
-    def execute(self, request: OptimizeStrategyRequest) -> HpoResultDto:
+    async def execute(self, request: OptimizeStrategyRequest) -> HpoResultDto:
         param_specs = _PARAM_SPECS.get(request.strategy_type)
         if param_specs is None:
             raise AppError(
@@ -66,7 +66,7 @@ class OptimizeStrategyUseCase:
                 422,
             )
 
-        response = self._ohlcv.execute(
+        response = await self._ohlcv.execute(
             request.instrument_id, request.timeframe, request.from_, request.to, 5000
         )
         min_needed = min(spec.low for spec in param_specs) + 10

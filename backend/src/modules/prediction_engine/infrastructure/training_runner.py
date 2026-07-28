@@ -1,8 +1,5 @@
 import asyncio
-from concurrent.futures import Future
-from typing import Callable
-
-from starlette.concurrency import run_in_threadpool
+from typing import Awaitable, Callable
 
 _TIMEFRAME_SECONDS = {
     "1s": 1, "5s": 5, "30s": 30, "1m": 60, "5m": 300,
@@ -19,45 +16,40 @@ class TrainingRunner:
     each time. Session state is in-memory only, not persisted — a backend
     restart simply stops all sessions (the user restarts them), which is an
     acceptable trade-off at this project's scale since every prediction
-    that *was* generated remains fully persisted (ADR-020). Cross-thread
-    scheduling mirrors PaperTradingRunner: sync route handlers run in
-    FastAPI's threadpool, so tasks must be scheduled onto the main event
-    loop via run_coroutine_threadsafe rather than asyncio.create_task."""
+    that *was* generated remains fully persisted (ADR-020). All callers now
+    run directly on the event loop (async route handlers, async lifespan),
+    so sessions are scheduled with plain asyncio.create_task."""
 
-    def __init__(self, predict: Callable[[int, str], None]) -> None:
+    def __init__(self, predict: Callable[[int, str], Awaitable[None]]) -> None:
         self._predict = predict
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._futures: dict[tuple[int, str], Future] = {}
-
-    def attach_loop(self, loop: asyncio.AbstractEventLoop) -> None:
-        self._loop = loop
+        self._tasks: dict[tuple[int, str], asyncio.Task] = {}
 
     def is_running(self, instrument_id: int, timeframe: str) -> bool:
-        future = self._futures.get((instrument_id, timeframe))
-        return future is not None and not future.done()
+        task = self._tasks.get((instrument_id, timeframe))
+        return task is not None and not task.done()
 
     def active_sessions(self) -> list[tuple[int, str]]:
-        return [key for key, future in self._futures.items() if not future.done()]
+        return [key for key, task in self._tasks.items() if not task.done()]
 
     def start(self, instrument_id: int, timeframe: str) -> None:
-        if self._loop is None or self.is_running(instrument_id, timeframe):
+        if self.is_running(instrument_id, timeframe):
             return
         interval = min(
             max(_TIMEFRAME_SECONDS.get(timeframe, 3_600), _MIN_INTERVAL_SECONDS),
             _MAX_INTERVAL_SECONDS,
         )
         key = (instrument_id, timeframe)
-        self._futures[key] = asyncio.run_coroutine_threadsafe(
-            self._loop_body(instrument_id, timeframe, interval), self._loop
+        self._tasks[key] = asyncio.create_task(
+            self._loop_body(instrument_id, timeframe, interval)
         )
 
     def stop(self, instrument_id: int, timeframe: str) -> None:
-        future = self._futures.pop((instrument_id, timeframe), None)
-        if future is not None:
-            future.cancel()
+        task = self._tasks.pop((instrument_id, timeframe), None)
+        if task is not None:
+            task.cancel()
 
     def stop_all(self) -> None:
-        for instrument_id, timeframe in list(self._futures):
+        for instrument_id, timeframe in list(self._tasks):
             self.stop(instrument_id, timeframe)
 
     async def _loop_body(
@@ -66,7 +58,7 @@ class TrainingRunner:
         try:
             while True:
                 try:
-                    await run_in_threadpool(self._predict, instrument_id, timeframe)
+                    await self._predict(instrument_id, timeframe)
                 except Exception:
                     pass
                 await asyncio.sleep(interval)

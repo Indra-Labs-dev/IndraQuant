@@ -17,7 +17,7 @@ class DetectPatternsUseCase:
     def __init__(self, ohlcv: OhlcvProvider) -> None:
         self._ohlcv = ohlcv
 
-    def execute(
+    async def execute(
         self,
         instrument_id: int,
         timeframe: str,
@@ -25,7 +25,7 @@ class DetectPatternsUseCase:
         end: datetime,
         limit: int,
     ) -> PatternsResponse:
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, limit)
+        response = await self._ohlcv.execute(instrument_id, timeframe, start, end, limit)
         candles = [
             Ohlc(open=c.open, high=c.high, low=c.low, close=c.close)
             for c in response.candles

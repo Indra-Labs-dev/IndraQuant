@@ -14,7 +14,8 @@ from sqlalchemy import (
     func,
     select,
 )
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.shared.infrastructure.database import Base
 
@@ -58,13 +59,13 @@ class PredictionModel(Base):
 
 
 class SqlAlchemyPredictionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def get_by_as_of(
+    async def get_by_as_of(
         self, instrument_id: int, timeframe: str, as_of: datetime
     ) -> PredictionModel | None:
-        return self._session.scalar(
+        return await self._session.scalar(
             select(PredictionModel).where(
                 PredictionModel.instrument_id == instrument_id,
                 PredictionModel.timeframe == timeframe,
@@ -72,19 +73,19 @@ class SqlAlchemyPredictionRepository:
             )
         )
 
-    def add(self, model: PredictionModel) -> PredictionModel:
+    async def add(self, model: PredictionModel) -> PredictionModel:
         self._session.add(model)
-        self._session.flush()
+        await self._session.flush()
         return model
 
-    def get(self, prediction_id: int) -> PredictionModel | None:
-        return self._session.get(PredictionModel, prediction_id)
+    async def get(self, prediction_id: int) -> PredictionModel | None:
+        return await self._session.get(PredictionModel, prediction_id)
 
-    def list_unresolved_ready(
+    async def list_unresolved_ready(
         self, now: datetime, limit: int = 200
     ) -> list[PredictionModel]:
         return list(
-            self._session.scalars(
+            await self._session.scalars(
                 select(PredictionModel)
                 .where(
                     PredictionModel.resolved_at.is_(None),
@@ -95,13 +96,13 @@ class SqlAlchemyPredictionRepository:
             )
         )
 
-    def calibration_stats(
+    async def calibration_stats(
         self, timeframe: str, low: float, high: float
     ) -> tuple[int, float | None]:
         confidence = func.greatest(
             PredictionModel.raw_prob_up, 1 - PredictionModel.raw_prob_up
         )
-        count, avg_correct = self._session.execute(
+        result = await self._session.execute(
             select(
                 func.count(),
                 func.avg(case((PredictionModel.correct.is_(True), 1), else_=0)),
@@ -111,14 +112,15 @@ class SqlAlchemyPredictionRepository:
                 confidence >= low,
                 confidence < high,
             )
-        ).one()
+        )
+        count, avg_correct = result.one()
         return count or 0, float(avg_correct) if avg_correct is not None else None
 
-    def price_calibration_stats(self, timeframe: str) -> tuple[int, float | None]:
+    async def price_calibration_stats(self, timeframe: str) -> tuple[int, float | None]:
         """Real, verified coverage of past price-interval estimates for this
         timeframe — how often the actual return actually fell inside the
         declared interval (ADR-029)."""
-        count, avg_in = self._session.execute(
+        result = await self._session.execute(
             select(
                 func.count(),
                 func.avg(case((PredictionModel.price_in_interval.is_(True), 1), else_=0)),
@@ -126,11 +128,12 @@ class SqlAlchemyPredictionRepository:
                 PredictionModel.timeframe == timeframe,
                 PredictionModel.price_in_interval.is_not(None),
             )
-        ).one()
+        )
+        count, avg_in = result.one()
         return count or 0, float(avg_in) if avg_in is not None else None
 
-    def overall_accuracy(self, timeframe: str) -> tuple[int, float | None]:
-        count, avg_correct = self._session.execute(
+    async def overall_accuracy(self, timeframe: str) -> tuple[int, float | None]:
+        result = await self._session.execute(
             select(
                 func.count(),
                 func.avg(case((PredictionModel.correct.is_(True), 1), else_=0)),
@@ -138,11 +141,12 @@ class SqlAlchemyPredictionRepository:
                 PredictionModel.timeframe == timeframe,
                 PredictionModel.resolved_at.is_not(None),
             )
-        ).one()
+        )
+        count, avg_correct = result.one()
         return count or 0, float(avg_correct) if avg_correct is not None else None
 
-    def summary_by_timeframe(self) -> list[dict]:
-        rows = self._session.execute(
+    async def summary_by_timeframe(self) -> list[dict]:
+        result = await self._session.execute(
             select(
                 PredictionModel.timeframe,
                 func.sum(case((PredictionModel.resolved_at.is_not(None), 1), else_=0)),
@@ -156,7 +160,8 @@ class SqlAlchemyPredictionRepository:
                     )
                 ),
             ).group_by(PredictionModel.timeframe)
-        ).all()
+        )
+        rows = result.all()
         return [
             {
                 "timeframe": timeframe,
@@ -167,7 +172,7 @@ class SqlAlchemyPredictionRepository:
             for timeframe, resolved, pending, accuracy in rows
         ]
 
-    def list_recent(
+    async def list_recent(
         self,
         instrument_id: int | None,
         timeframe: str,
@@ -181,20 +186,20 @@ class SqlAlchemyPredictionRepository:
         )
         if instrument_id is not None:
             query = query.where(PredictionModel.instrument_id == instrument_id)
-        return list(self._session.scalars(query))
+        return list(await self._session.scalars(query))
 
-    def get_latest_id(self, instrument_id: int, timeframe: str) -> int | None:
+    async def get_latest_id(self, instrument_id: int, timeframe: str) -> int | None:
         """Cheapest possible query to detect whether new predictions landed
         since a cached read — used as a cache-invalidation key (ADR-026
         discipline) instead of the full `list_recent` fetch."""
-        return self._session.scalar(
+        return await self._session.scalar(
             select(func.max(PredictionModel.id)).where(
                 PredictionModel.instrument_id == instrument_id,
                 PredictionModel.timeframe == timeframe,
             )
         )
 
-    def list_resolved_ordered(
+    async def list_resolved_ordered(
         self, instrument_id: int | None, timeframe: str
     ) -> list[PredictionModel]:
         query = (
@@ -207,4 +212,4 @@ class SqlAlchemyPredictionRepository:
         )
         if instrument_id is not None:
             query = query.where(PredictionModel.instrument_id == instrument_id)
-        return list(self._session.scalars(query))
+        return list(await self._session.scalars(query))

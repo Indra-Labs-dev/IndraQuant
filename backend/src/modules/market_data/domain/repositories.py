@@ -18,17 +18,17 @@ class MarketDataRepository(Protocol):
 
 
 class InstrumentRepository(Protocol):
-    def list_instruments(
+    async def list_instruments(
         self, asset_class: str | None = None, exchange: str | None = None
     ) -> list[Instrument]: ...
 
-    def get(self, instrument_id: int) -> Instrument | None: ...
+    async def get(self, instrument_id: int) -> Instrument | None: ...
 
 
 class CandleStore(Protocol):
     """Historical Data Storage persistence port."""
 
-    def get_range(
+    async def get_range(
         self,
         instrument_id: int,
         timeframe: Timeframe,
@@ -37,14 +37,14 @@ class CandleStore(Protocol):
         limit: int,
     ) -> list[Candle]: ...
 
-    def latest_open_time(
+    async def latest_open_time(
         self, instrument_id: int, timeframe: Timeframe
     ) -> datetime | None: ...
 
-    def earliest_open_time(
+    async def earliest_open_time(
         self, instrument_id: int, timeframe: Timeframe
     ) -> datetime | None: ...
 
-    def upsert_many(
+    async def upsert_many(
         self, instrument_id: int, timeframe: Timeframe, candles: list[Candle]
     ) -> int: ...

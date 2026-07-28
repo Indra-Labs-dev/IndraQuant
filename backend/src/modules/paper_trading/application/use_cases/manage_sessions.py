@@ -50,11 +50,11 @@ class ManageSessionsUseCase:
         self._repository = repository
         self._ohlcv = ohlcv
 
-    def create(self, request: CreateSessionRequest) -> SessionSummary:
+    async def create(self, request: CreateSessionRequest) -> SessionSummary:
         from src.modules.backtesting.application.service import validate_strategy
 
         validate_strategy(request.strategy)
-        model = self._repository.add_session(
+        model = await self._repository.add_session(
             PaperSessionModel(
                 instrument_id=request.instrument_id,
                 timeframe=request.timeframe,
@@ -67,8 +67,8 @@ class ManageSessionsUseCase:
         )
         return _summary(model)
 
-    def stop(self, session_id: int) -> SessionSummary:
-        model = self._repository.get(session_id)
+    async def stop(self, session_id: int) -> SessionSummary:
+        model = await self._repository.get(session_id)
         if model is None:
             raise NotFoundError("session_not_found", f"Session {session_id} inconnue.")
         if model.status == "running":
@@ -76,17 +76,17 @@ class ManageSessionsUseCase:
             model.stopped_at = datetime.now(timezone.utc).replace(tzinfo=None)
         return _summary(model)
 
-    def list_sessions(self) -> SessionsResponse:
+    async def list_sessions(self) -> SessionsResponse:
         return SessionsResponse(
-            sessions=[_summary(m) for m in self._repository.list_sessions()]
+            sessions=[_summary(m) for m in await self._repository.list_sessions()]
         )
 
-    def detail(self, session_id: int) -> SessionDetail:
-        model = self._repository.get(session_id)
+    async def detail(self, session_id: int) -> SessionDetail:
+        model = await self._repository.get(session_id)
         if model is None:
             raise NotFoundError("session_not_found", f"Session {session_id} inconnue.")
 
-        trades = self._repository.trades_for(session_id)
+        trades = await self._repository.trades_for(session_id)
         trade_records = [
             TradeRecord(
                 side=t.side,
@@ -105,7 +105,7 @@ class ManageSessionsUseCase:
             model.started_at.replace(tzinfo=timezone.utc),
             end - timedelta(seconds=seconds * 2),
         )
-        response = self._ohlcv.execute(
+        response = await self._ohlcv.execute(
             model.instrument_id, model.timeframe, start, end, 5000
         )
         last_price = response.candles[-1].close if response.candles else 0.0

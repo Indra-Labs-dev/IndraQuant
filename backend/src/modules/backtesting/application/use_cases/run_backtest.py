@@ -31,10 +31,10 @@ class RunBacktestUseCase:
         self._ohlcv = ohlcv
         self._runs = runs
 
-    def execute(self, request: RunBacktestRequest, persist: bool = True) -> BacktestReport:
+    async def execute(self, request: RunBacktestRequest, persist: bool = True) -> BacktestReport:
         validate_strategy(request.strategy)
 
-        response = self._ohlcv.execute(
+        response = await self._ohlcv.execute(
             request.instrument_id,
             request.timeframe,
             request.from_,
@@ -102,5 +102,5 @@ class RunBacktestUseCase:
             ),
         )
         if persist and self._runs is not None:
-            report.id = self._runs.save(report)
+            report.id = await self._runs.save(report)
         return report

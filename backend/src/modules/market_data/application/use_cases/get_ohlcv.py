@@ -50,7 +50,7 @@ class GetOhlcvUseCase:
         self._clock = clock
         self._cache = cache
 
-    def execute(
+    async def execute(
         self,
         instrument_id: int,
         timeframe_value: str,
@@ -69,15 +69,15 @@ class GetOhlcvUseCase:
                 "invalid_range", "Parameter 'from' must be before 'to'.", 422
             )
 
-        instrument = self._instruments.get(instrument_id)
+        instrument = await self._instruments.get(instrument_id)
         if instrument is None:
             raise NotFoundError(
                 "instrument_not_found", f"Instrument {instrument_id} inconnu."
             )
 
-        self._ingest_missing(instrument, timeframe, start, end)
+        await self._ingest_missing(instrument, timeframe, start, end)
 
-        candles = self._store.get_range(instrument_id, timeframe, start, end, limit)
+        candles = await self._store.get_range(instrument_id, timeframe, start, end, limit)
         return OhlcvResponse(
             instrument_id=instrument_id,
             timeframe=timeframe.value,
@@ -94,23 +94,23 @@ class GetOhlcvUseCase:
             ],
         )
 
-    def _ingest_missing(self, instrument, timeframe, start, end) -> None:
+    async def _ingest_missing(self, instrument, timeframe, start, end) -> None:
         now = _to_naive_utc(self._clock.now(timezone.utc))
-        latest = self._store.latest_open_time(instrument.id, timeframe)
-        earliest = self._store.earliest_open_time(instrument.id, timeframe)
+        latest = await self._store.latest_open_time(instrument.id, timeframe)
+        earliest = await self._store.earliest_open_time(instrument.id, timeframe)
 
         total = 0
         if earliest is not None and start < earliest:
             # Backfill history older than what is stored.
-            total += self._fetch_range(instrument, timeframe, start, earliest)
+            total += await self._fetch_range(instrument, timeframe, start, earliest)
 
         # Refetch from the latest stored candle (it may have been partial
         # when first ingested); from `start` when storage is empty.
         forward_since = start if latest is None else latest
-        if forward_since < min(end, now) and self._should_attempt_ingest(
+        if forward_since < min(end, now) and await self._should_attempt_ingest(
             instrument.id, timeframe.value
         ):
-            total += self._fetch_range(instrument, timeframe, forward_since, end)
+            total += await self._fetch_range(instrument, timeframe, forward_since, end)
 
         if total:
             self._events.publish(
@@ -122,16 +122,16 @@ class GetOhlcvUseCase:
                 )
             )
 
-    def _should_attempt_ingest(self, instrument_id: int, timeframe_value: str) -> bool:
+    async def _should_attempt_ingest(self, instrument_id: int, timeframe_value: str) -> bool:
         if self._cache is None:
             return True
         try:
             key = f"ohlcv-ingest-cooldown:{instrument_id}:{timeframe_value}"
-            return bool(self._cache.set(key, "1", nx=True, ex=_INGEST_COOLDOWN_SECONDS))
+            return bool(await self._cache.set(key, "1", nx=True, ex=_INGEST_COOLDOWN_SECONDS))
         except Exception:
             return True
 
-    def _fetch_range(self, instrument, timeframe, since, until) -> int:
+    async def _fetch_range(self, instrument, timeframe, since, until) -> int:
         total = 0
         for _ in range(_MAX_FETCH_PAGES):
             batch = self._provider.fetch_ohlcv(
@@ -139,7 +139,7 @@ class GetOhlcvUseCase:
             )
             if not batch:
                 break
-            total += self._store.upsert_many(instrument.id, timeframe, batch)
+            total += await self._store.upsert_many(instrument.id, timeframe, batch)
             last_open = batch[-1].open_time
             if last_open >= until or len(batch) < _FETCH_PAGE_SIZE:
                 break

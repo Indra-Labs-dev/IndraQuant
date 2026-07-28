@@ -5,14 +5,14 @@ from src.shared.events.event_bus import EventBus
 from tests.unit.test_get_ohlcv import BTC, FakeInstruments, FakeProvider, FakeStore, candle
 
 
-def test_backfills_history_older_than_stored():
+async def test_backfills_history_older_than_stored():
     store = FakeStore([candle(datetime(2026, 1, 3, h)) for h in range(3)])
     older = [candle(datetime(2026, 1, 1, h)) for h in range(24)]
     newer = [candle(datetime(2026, 1, 3, h)) for h in (2, 3)]
     provider = FakeProvider([older, newer])
     use_case = GetOhlcvUseCase(FakeInstruments([BTC]), provider, store, EventBus())
 
-    response = use_case.execute(
+    response = await use_case.execute(
         1, "1h", datetime(2026, 1, 1), datetime(2026, 1, 4), 500
     )
 

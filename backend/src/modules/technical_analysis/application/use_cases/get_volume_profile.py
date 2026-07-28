@@ -18,7 +18,7 @@ class GetVolumeProfileUseCase:
     def __init__(self, ohlcv: OhlcvProvider) -> None:
         self._ohlcv = ohlcv
 
-    def execute(
+    async def execute(
         self,
         instrument_id: int,
         timeframe: str,
@@ -27,7 +27,7 @@ class GetVolumeProfileUseCase:
         limit: int,
         bins: int = 10,
     ) -> VolumeProfileResponse:
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, limit)
+        response = await self._ohlcv.execute(instrument_id, timeframe, start, end, limit)
         if not response.candles:
             raise AppError("not_enough_data", "Aucune bougie sur la période.", 422)
 

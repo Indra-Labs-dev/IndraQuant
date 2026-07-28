@@ -30,8 +30,8 @@ class GetRiskBudgetUseCase:
         self._portfolio_summary = portfolio_summary
         self._ohlcv = ohlcv
 
-    def execute(self) -> RiskBudgetResponse:
-        summary = self._portfolio_summary.execute()
+    async def execute(self) -> RiskBudgetResponse:
+        summary = await self._portfolio_summary.execute()
         volatilities: dict[str, float] = {}
         volatility_by_instrument: dict[int, float | None] = {}
 
@@ -39,7 +39,7 @@ class GetRiskBudgetUseCase:
         start = end - timedelta(seconds=_TIMEFRAME_SECONDS * _LOOKBACK_CANDLES)
         for allocation in summary.allocation:
             try:
-                response = self._ohlcv.execute(
+                response = await self._ohlcv.execute(
                     allocation.instrument_id, _TIMEFRAME, start, end, 2000
                 )
                 closes = [c.close for c in response.candles]

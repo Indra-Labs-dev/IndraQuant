@@ -26,7 +26,7 @@ class FakeRepository:
     def __init__(self, rows: list[FakePredictionRow]) -> None:
         self.rows = rows
 
-    def list_unresolved_ready(self, now, limit=200):
+    async def list_unresolved_ready(self, now, limit=200):
         return [r for r in self.rows if r.resolved_at is None and r.target_time <= now]
 
 
@@ -45,13 +45,13 @@ class FakeOhlcvProvider:
     def __init__(self, candles: list[FakeCandle]) -> None:
         self.candles = candles
 
-    def execute(self, instrument_id, timeframe, start, end, limit):
+    async def execute(self, instrument_id, timeframe, start, end, limit):
         return FakeOhlcvResponse(
             candles=[c for c in self.candles if start <= c.open_time <= end]
         )
 
 
-def test_resolves_prediction_once_target_candle_has_closed():
+async def test_resolves_prediction_once_target_candle_has_closed():
     as_of = datetime(2026, 1, 1, 0, 0)
     target = datetime(2026, 1, 1, 1, 0)
     prediction = FakePredictionRow(
@@ -66,7 +66,7 @@ def test_resolves_prediction_once_target_candle_has_closed():
     )
     use_case = ResolvePredictionsUseCase(FakeRepository([prediction]), provider)
 
-    resolved = use_case.execute()
+    resolved = await use_case.execute()
 
     assert resolved == 1
     assert prediction.actual_direction == "up"
@@ -74,7 +74,7 @@ def test_resolves_prediction_once_target_candle_has_closed():
     assert prediction.resolved_at is not None
 
 
-def test_marks_incorrect_when_prediction_was_wrong():
+async def test_marks_incorrect_when_prediction_was_wrong():
     as_of = datetime(2026, 1, 1, 0, 0)
     target = datetime(2026, 1, 1, 1, 0)
     prediction = FakePredictionRow(
@@ -87,13 +87,13 @@ def test_marks_incorrect_when_prediction_was_wrong():
     provider = FakeOhlcvProvider([FakeCandle(as_of, 100.0), FakeCandle(target, 90.0)])
     use_case = ResolvePredictionsUseCase(FakeRepository([prediction]), provider)
 
-    use_case.execute()
+    await use_case.execute()
 
     assert prediction.actual_direction == "down"
     assert prediction.correct is False
 
 
-def test_skips_candles_missing_from_provider():
+async def test_skips_candles_missing_from_provider():
     as_of = datetime(2026, 1, 1, 0, 0)
     target = datetime(2026, 1, 1, 1, 0)
     prediction = FakePredictionRow(
@@ -106,13 +106,13 @@ def test_skips_candles_missing_from_provider():
     provider = FakeOhlcvProvider([])
     use_case = ResolvePredictionsUseCase(FakeRepository([prediction]), provider)
 
-    resolved = use_case.execute()
+    resolved = await use_case.execute()
 
     assert resolved == 0
     assert prediction.resolved_at is None
 
 
-def test_marks_price_in_interval_when_actual_return_falls_inside():
+async def test_marks_price_in_interval_when_actual_return_falls_inside():
     as_of = datetime(2026, 1, 1, 0, 0)
     target = datetime(2026, 1, 1, 1, 0)
     prediction = FakePredictionRow(
@@ -128,13 +128,13 @@ def test_marks_price_in_interval_when_actual_return_falls_inside():
     provider = FakeOhlcvProvider([FakeCandle(as_of, 100.0), FakeCandle(target, 105.0)])
     use_case = ResolvePredictionsUseCase(FakeRepository([prediction]), provider)
 
-    use_case.execute()
+    await use_case.execute()
 
     assert prediction.actual_return is not None
     assert prediction.price_in_interval is True
 
 
-def test_marks_price_outside_interval_when_actual_return_exceeds_it():
+async def test_marks_price_outside_interval_when_actual_return_exceeds_it():
     as_of = datetime(2026, 1, 1, 0, 0)
     target = datetime(2026, 1, 1, 1, 0)
     prediction = FakePredictionRow(
@@ -150,12 +150,12 @@ def test_marks_price_outside_interval_when_actual_return_exceeds_it():
     provider = FakeOhlcvProvider([FakeCandle(as_of, 100.0), FakeCandle(target, 150.0)])
     use_case = ResolvePredictionsUseCase(FakeRepository([prediction]), provider)
 
-    use_case.execute()
+    await use_case.execute()
 
     assert prediction.price_in_interval is False
 
 
-def test_leaves_price_fields_untouched_when_no_price_prediction_was_stored():
+async def test_leaves_price_fields_untouched_when_no_price_prediction_was_stored():
     as_of = datetime(2026, 1, 1, 0, 0)
     target = datetime(2026, 1, 1, 1, 0)
     prediction = FakePredictionRow(
@@ -168,7 +168,7 @@ def test_leaves_price_fields_untouched_when_no_price_prediction_was_stored():
     provider = FakeOhlcvProvider([FakeCandle(as_of, 100.0), FakeCandle(target, 110.0)])
     use_case = ResolvePredictionsUseCase(FakeRepository([prediction]), provider)
 
-    use_case.execute()
+    await use_case.execute()
 
     assert prediction.actual_return is None
     assert prediction.price_in_interval is None

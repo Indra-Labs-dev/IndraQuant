@@ -17,7 +17,7 @@ class RegisterModelVersionUseCase:
     def __init__(self, versions: SqlAlchemyModelVersionRepository) -> None:
         self._versions = versions
 
-    def execute(
+    async def execute(
         self,
         instrument_id: int,
         timeframe: str,
@@ -28,7 +28,7 @@ class RegisterModelVersionUseCase:
         baseline_accuracy: float,
         training_rows: int,
     ) -> None:
-        champion = self._versions.get_current_champion(instrument_id, timeframe)
+        champion = await self._versions.get_current_champion(instrument_id, timeframe)
         prior_accuracy = (
             max(float(champion.xgboost_accuracy), float(champion.logistic_regression_accuracy))
             if champion is not None
@@ -36,11 +36,11 @@ class RegisterModelVersionUseCase:
         )
         decision = decide_champion(xgboost_accuracy, logistic_regression_accuracy, prior_accuracy)
 
-        version = self._versions.next_version(instrument_id, timeframe)
+        version = await self._versions.next_version(instrument_id, timeframe)
         if decision.promoted:
-            self._versions.clear_champion(instrument_id, timeframe)
+            await self._versions.clear_champion(instrument_id, timeframe)
 
-        self._versions.add(
+        await self._versions.add(
             ModelVersionModel(
                 instrument_id=instrument_id,
                 timeframe=timeframe,

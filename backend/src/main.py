@@ -84,18 +84,18 @@ health_router = APIRouter()
 
 
 @health_router.get("/health")
-def health() -> dict:
+async def health() -> dict:
     database = "ok"
     cache = "ok"
 
     try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
     except Exception:
         database = "error"
 
     try:
-        redis_client.ping()
+        await redis_client.ping()
     except Exception:
         cache = "error"
 
@@ -105,13 +105,8 @@ def health() -> dict:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import asyncio
-
-    bootstrap()
-    loop = asyncio.get_running_loop()
-    paper_trading_runner.attach_loop(loop)
-    training_runner.attach_loop(loop)
-    resume_running_paper_sessions()
+    await bootstrap()
+    await resume_running_paper_sessions()
     alert_runner.start()
     prediction_resolver_runner.start()
     market_data_refresh_runner.start()
@@ -128,7 +123,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_origins=["http://localhost:3001", "http://127.0.0.1:3001"],
         allow_methods=["*"],
         allow_headers=["*"],
     )

@@ -22,18 +22,18 @@ router = APIRouter(prefix="/optimization", tags=["hyperparameter-optimization"])
 
 
 @router.post("/strategy")
-def optimize_strategy(
+async def optimize_strategy(
     request: OptimizeStrategyRequest,
     _: UserProfile = Depends(get_current_user),
     use_case: OptimizeStrategyUseCase = Depends(get_optimize_strategy_use_case),
 ) -> HpoResultDto:
-    return use_case.execute(request)
+    return await use_case.execute(request)
 
 
 @router.post("/model")
-def optimize_model(
+async def optimize_model(
     request: OptimizeModelRequest,
     _: UserProfile = Depends(get_current_user),
     use_case: OptimizeModelHyperparametersUseCase = Depends(get_optimize_model_use_case),
 ) -> HpoResultDto:
-    return use_case.execute(request)
+    return await use_case.execute(request)

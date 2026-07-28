@@ -12,7 +12,7 @@ router = APIRouter(tags=["correlation-engine"])
 
 
 @router.get("/correlations")
-def get_correlations(
+async def get_correlations(
     instrument_ids: str = Query(
         ..., description="Identifiants d'instruments séparés par des virgules, ex. 1,2,3"
     ),
@@ -29,4 +29,4 @@ def get_correlations(
             "instrument_ids doit être une liste d'identifiants entiers séparés par des virgules.",
             422,
         )
-    return use_case.execute(ids, timeframe, window)
+    return await use_case.execute(ids, timeframe, window)

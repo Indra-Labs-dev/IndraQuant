@@ -6,7 +6,7 @@ class GetSettingsUseCase:
     def __init__(self, settings_repo: SettingsRepository) -> None:
         self._settings = settings_repo
 
-    def execute(self, user_id: int) -> SettingsResponse:
+    async def execute(self, user_id: int) -> SettingsResponse:
         return SettingsResponse(
-            settings={s.key: s.value for s in self._settings.get_all(user_id)}
+            settings={s.key: s.value for s in await self._settings.get_all(user_id)}
         )

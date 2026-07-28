@@ -45,11 +45,11 @@ class GetDriftReportUseCase:
         self._ohlcv = ohlcv
         self._predictions = predictions
 
-    def execute(self, instrument_id: int, timeframe: str) -> DriftReportResponse:
+    async def execute(self, instrument_id: int, timeframe: str) -> DriftReportResponse:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * _TRAINING_CANDLES)
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, 5000)
+        response = await self._ohlcv.execute(instrument_id, timeframe, start, end, 5000)
 
         closes = [c.close for c in response.candles]
         volumes = [c.volume for c in response.candles]
@@ -65,7 +65,7 @@ class GetDriftReportUseCase:
         midpoint = len(rows) // 2
         feature_drifts = data_drift_report(rows[:midpoint], rows[midpoint:], FEATURE_NAMES)
         label = label_drift(labels[:midpoint], labels[midpoint:])
-        concept = self._concept_drift(instrument_id, response.timeframe)
+        concept = await self._concept_drift(instrument_id, response.timeframe)
 
         severity = overall_severity(
             [f.severity for f in feature_drifts] + [label.severity, concept.severity]
@@ -113,8 +113,8 @@ class GetDriftReportUseCase:
             explanation=explanation,
         )
 
-    def _concept_drift(self, instrument_id: int, timeframe: str) -> ConceptDrift:
-        resolved: list[PredictionModel] = self._predictions.list_resolved_ordered(
+    async def _concept_drift(self, instrument_id: int, timeframe: str) -> ConceptDrift:
+        resolved: list[PredictionModel] = await self._predictions.list_resolved_ordered(
             instrument_id, timeframe
         )
         n = len(resolved)

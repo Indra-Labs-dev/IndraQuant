@@ -20,7 +20,7 @@ class FakeInstrumentRepository:
     def __init__(self, instruments: list[FakeInstrument]) -> None:
         self._instruments = instruments
 
-    def get(self, instrument_id: int):
+    async def get(self, instrument_id: int):
         return next((i for i in self._instruments if i.id == instrument_id), None)
 
 
@@ -60,17 +60,17 @@ class FakeManageSessionsUseCase:
         self._sessions = sessions
         self._details = details
 
-    def list_sessions(self):
+    async def list_sessions(self):
         class Response:
             sessions = self._sessions
 
         return Response()
 
-    def detail(self, session_id: int) -> SessionDetail:
+    async def detail(self, session_id: int) -> SessionDetail:
         return self._details[session_id]
 
 
-def test_allocation_is_grouped_by_instrument_not_by_session():
+async def test_allocation_is_grouped_by_instrument_not_by_session():
     sessions = [
         _session(1, instrument_id=1, status="running", initial_capital=10_000.0),
         _session(2, instrument_id=1, status="stopped", initial_capital=10_000.0),
@@ -88,7 +88,7 @@ def test_allocation_is_grouped_by_instrument_not_by_session():
         ),
     )
 
-    summary = use_case.execute()
+    summary = await use_case.execute()
 
     assert len(summary.allocation) == 2
     btc = next(a for a in summary.allocation if a.instrument_id == 1)
@@ -98,7 +98,7 @@ def test_allocation_is_grouped_by_instrument_not_by_session():
     assert summary.stopped_sessions == 2
 
 
-def test_weights_sum_to_roughly_one_hundred_percent():
+async def test_weights_sum_to_roughly_one_hundred_percent():
     sessions = [
         _session(1, instrument_id=1, status="stopped", initial_capital=10_000.0),
         _session(2, instrument_id=2, status="stopped", initial_capital=10_000.0),
@@ -114,7 +114,7 @@ def test_weights_sum_to_roughly_one_hundred_percent():
         ),
     )
 
-    summary = use_case.execute()
+    summary = await use_case.execute()
 
     assert round(sum(a.weight_pct for a in summary.allocation), 6) == 100.0
     assert summary.allocation[0].symbol == "BTC/USDT"

@@ -66,9 +66,9 @@ class ValidateBacktestUseCase:
     def __init__(self, ohlcv: OhlcvProvider) -> None:
         self._ohlcv = ohlcv
 
-    def execute(self, request: RunBacktestRequest) -> BacktestValidationResponse:
+    async def execute(self, request: RunBacktestRequest) -> BacktestValidationResponse:
         validate_strategy(request.strategy)
-        response = self._ohlcv.execute(
+        response = await self._ohlcv.execute(
             request.instrument_id, request.timeframe, request.from_, request.to, 5000
         )
         if len(response.candles) < min_history(request.strategy):

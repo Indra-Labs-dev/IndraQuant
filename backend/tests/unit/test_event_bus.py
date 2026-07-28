@@ -27,7 +27,7 @@ class FakeOhlcvProvider:
     def __init__(self, closes: list[float]) -> None:
         self._closes = closes
 
-    def execute(self, instrument_id, timeframe, start, end, limit) -> OhlcvResponse:
+    async def execute(self, instrument_id, timeframe, start, end, limit) -> OhlcvResponse:
         candles = [
             CandleDto(
                 open_time=datetime(2026, 1, 1) + timedelta(hours=i),
@@ -46,7 +46,7 @@ class FakeAlertRepository:
     def __init__(self, alerts: list[AlertModel]) -> None:
         self._alerts = alerts
 
-    def list_active(self) -> list[AlertModel]:
+    async def list_active(self) -> list[AlertModel]:
         return self._alerts
 
 
@@ -55,10 +55,10 @@ class FakePaperTradingRepository:
         self._session = session
         self.trades = []
 
-    def get(self, session_id: int) -> PaperSessionModel:
+    async def get(self, session_id: int) -> PaperSessionModel:
         return self._session
 
-    def add_trade(self, trade) -> None:
+    async def add_trade(self, trade) -> None:
         self.trades.append(trade)
 
 
@@ -123,7 +123,7 @@ def test_event_log_serializes_datetime_payload_fields():
     assert payload["ingested_at"] == "2026-01-01T12:00:00"
 
 
-def test_check_alerts_publishes_alert_triggered_on_hit():
+async def test_check_alerts_publishes_alert_triggered_on_hit():
     alert = AlertModel(
         id=1,
         instrument_id=1,
@@ -139,7 +139,7 @@ def test_check_alerts_publishes_alert_triggered_on_hit():
     use_case = CheckAlertsUseCase(
         FakeAlertRepository([alert]), FakeOhlcvProvider([40.0, 45.0, 60.0]), bus
     )
-    triggered = use_case.execute()
+    triggered = await use_case.execute()
 
     assert triggered == 1
     assert alert.is_active is False
@@ -148,7 +148,7 @@ def test_check_alerts_publishes_alert_triggered_on_hit():
     assert received[0].instrument_id == 1
 
 
-def test_check_alerts_publishes_nothing_without_event_bus():
+async def test_check_alerts_publishes_nothing_without_event_bus():
     alert = AlertModel(
         id=1,
         instrument_id=1,
@@ -159,10 +159,10 @@ def test_check_alerts_publishes_nothing_without_event_bus():
     )
     use_case = CheckAlertsUseCase(FakeAlertRepository([alert]), FakeOhlcvProvider([60.0] * 5))
     # Must not raise even though no event bus was provided.
-    assert use_case.execute() == 1
+    assert await use_case.execute() == 1
 
 
-def test_process_tick_publishes_portfolio_updated_on_buy():
+async def test_process_tick_publishes_portfolio_updated_on_buy():
     session = PaperSessionModel(
         id=7,
         instrument_id=1,
@@ -181,7 +181,7 @@ def test_process_tick_publishes_portfolio_updated_on_buy():
     use_case = ProcessTickUseCase(
         FakePaperTradingRepository(session), FakeOhlcvProvider(closes), bus
     )
-    use_case.execute(7)
+    await use_case.execute(7)
 
     assert len(received) == 1
     assert received[0].session_id == 7

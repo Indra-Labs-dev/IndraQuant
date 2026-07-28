@@ -16,18 +16,18 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 @router.get("")
-def get_settings(
+async def get_settings(
     user: UserProfile = Depends(get_current_user),
     use_case: GetSettingsUseCase = Depends(get_settings_use_case),
 ) -> SettingsResponse:
-    return use_case.execute(user.id)
+    return await use_case.execute(user.id)
 
 
 @router.put("/{key}")
-def update_setting(
+async def update_setting(
     key: str,
     request: UpdateSettingRequest,
     user: UserProfile = Depends(get_current_user),
     use_case: UpdateSettingUseCase = Depends(get_update_setting_use_case),
 ) -> SettingsResponse:
-    return use_case.execute(user.id, key, request.value)
+    return await use_case.execute(user.id, key, request.value)

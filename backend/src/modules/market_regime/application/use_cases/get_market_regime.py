@@ -22,8 +22,8 @@ class GetMarketRegimeUseCase:
     def __init__(self, ohlcv: OhlcvProvider) -> None:
         self._ohlcv = ohlcv
 
-    def execute(self, instrument_id: int, timeframe: str) -> MarketRegimeResponse:
-        regime = self.detect(instrument_id, timeframe)
+    async def execute(self, instrument_id: int, timeframe: str) -> MarketRegimeResponse:
+        regime = await self.detect(instrument_id, timeframe)
         return MarketRegimeResponse(
             instrument_id=instrument_id,
             timeframe=timeframe,
@@ -36,11 +36,11 @@ class GetMarketRegimeUseCase:
             explanation=regime.explanation,
         )
 
-    def detect(self, instrument_id: int, timeframe: str) -> MarketRegime:
+    async def detect(self, instrument_id: int, timeframe: str) -> MarketRegime:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * _CANDLE_WINDOW)
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
+        response = await self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
         closes = [c.close for c in response.candles]
         if len(closes) < _MIN_ROWS:
             raise AppError(

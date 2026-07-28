@@ -11,10 +11,10 @@ router = APIRouter(tags=["meta-decision"])
 
 
 @router.get("/instruments/{instrument_id}/meta-decision")
-def get_meta_decision(
+async def get_meta_decision(
     instrument_id: int,
     timeframe: str = Query(default="1h"),
     _: UserProfile = Depends(get_current_user),
     use_case: GetMetaDecisionUseCase = Depends(get_meta_decision_use_case),
 ) -> MetaDecisionResponse:
-    return use_case.execute(instrument_id, timeframe)
+    return await use_case.execute(instrument_id, timeframe)

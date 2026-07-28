@@ -1,11 +1,17 @@
 import json
+import os
 from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
-_OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-_OLLAMA_CHAT_URL = "http://127.0.0.1:11434/api/chat"
-_MODEL = "llama3.1:8b"
+# Ollama tourne nativement sur l'hote (acces GPU) meme quand le backend est
+# conteneurise - OLLAMA_BASE_URL permet de le joindre via host.docker.internal
+# dans ce cas (voir docker-compose.yml), 127.0.0.1 restant le defaut pour une
+# execution native du backend.
+_OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+_OLLAMA_URL = f"{_OLLAMA_BASE_URL}/api/generate"
+_OLLAMA_CHAT_URL = f"{_OLLAMA_BASE_URL}/api/chat"
+_MODEL = "qwen3.5:9b"
 _TIMEOUT_SECONDS = 60
 _CHAT_TIMEOUT_SECONDS = 120
 # One classification call per headline is unavoidable (Ollama's JSON mode only

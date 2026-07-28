@@ -24,20 +24,20 @@ class CompareExplanationsUseCase:
         self._predictions = predictions
         self._cache = cache
 
-    def execute(self, prediction_id_a: int, prediction_id_b: int) -> CompareExplanationsResponse:
+    async def execute(self, prediction_id_a: int, prediction_id_b: int) -> CompareExplanationsResponse:
         # Not normalized by min/max: a vs b and b vs a report deltas with
         # opposite signs, so swapping the request order must miss the cache.
         cache_key = f"compare-explanations:{prediction_id_a}:{prediction_id_b}"
         if self._cache is not None:
             try:
-                cached = self._cache.get(cache_key)
+                cached = await self._cache.get(cache_key)
                 if cached:
                     return CompareExplanationsResponse.model_validate_json(cached)
             except Exception:
                 pass
 
-        record_a = self._predictions.get(prediction_id_a)
-        record_b = self._predictions.get(prediction_id_b)
+        record_a = await self._predictions.get(prediction_id_a)
+        record_b = await self._predictions.get(prediction_id_b)
         if record_a is None:
             raise NotFoundError("prediction_not_found", f"Prédiction {prediction_id_a} introuvable.")
         if record_b is None:
@@ -65,7 +65,7 @@ class CompareExplanationsUseCase:
         )
         if self._cache is not None:
             try:
-                self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+                await self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
             except Exception:
                 pass
         return response

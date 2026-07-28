@@ -23,11 +23,11 @@ class GetFeatureVectorUseCase:
         self._ohlcv = ohlcv
         self._store = store
 
-    def execute(self, instrument_id: int, timeframe: str) -> FeatureVectorResponse:
+    async def execute(self, instrument_id: int, timeframe: str) -> FeatureVectorResponse:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * _CANDLE_WINDOW)
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
+        response = await self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
 
         closes = [c.close for c in response.candles]
         volumes = [c.volume for c in response.candles]
@@ -40,7 +40,7 @@ class GetFeatureVectorUseCase:
             )
 
         as_of = response.candles[-1].open_time
-        vector = self._store.get_latest(
+        vector = await self._store.get_latest(
             instrument_id, response.timeframe, as_of, closes, volumes
         )
         return FeatureVectorResponse(

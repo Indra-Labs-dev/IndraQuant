@@ -31,10 +31,10 @@ class FakeInstruments:
     def __init__(self, instruments: list[Instrument]) -> None:
         self._instruments = instruments
 
-    def list_instruments(self, asset_class=None, exchange=None):
+    async def list_instruments(self, asset_class=None, exchange=None):
         return self._instruments
 
-    def get(self, instrument_id: int) -> Instrument | None:
+    async def get(self, instrument_id: int) -> Instrument | None:
         return next((i for i in self._instruments if i.id == instrument_id), None)
 
 
@@ -52,19 +52,19 @@ class FakeStore:
     def __init__(self, candles: list[Candle] | None = None) -> None:
         self.candles: list[Candle] = candles or []
 
-    def get_range(self, instrument_id, timeframe, start, end, limit):
+    async def get_range(self, instrument_id, timeframe, start, end, limit):
         return sorted(
             (c for c in self.candles if start <= c.open_time <= end),
             key=lambda c: c.open_time,
         )[:limit]
 
-    def latest_open_time(self, instrument_id, timeframe):
+    async def latest_open_time(self, instrument_id, timeframe):
         return max((c.open_time for c in self.candles), default=None)
 
-    def earliest_open_time(self, instrument_id, timeframe):
+    async def earliest_open_time(self, instrument_id, timeframe):
         return min((c.open_time for c in self.candles), default=None)
 
-    def upsert_many(self, instrument_id, timeframe, candles):
+    async def upsert_many(self, instrument_id, timeframe, candles):
         existing = {c.open_time for c in self.candles}
         self.candles.extend(c for c in candles if c.open_time not in existing)
         return len(candles)
@@ -76,7 +76,7 @@ def make_use_case(provider: FakeProvider, store: FakeStore, bus: EventBus | None
     )
 
 
-def test_empty_store_triggers_fetch_from_start_and_publishes_event():
+async def test_empty_store_triggers_fetch_from_start_and_publishes_event():
     fetched = [candle(datetime(2026, 1, 1, h)) for h in range(3)]
     provider = FakeProvider([fetched])
     store = FakeStore()
@@ -84,7 +84,7 @@ def test_empty_store_triggers_fetch_from_start_and_publishes_event():
     events: list[MarketDataIngested] = []
     bus.subscribe(MarketDataIngested, events.append)
 
-    response = make_use_case(provider, store, bus).execute(
+    response = await make_use_case(provider, store, bus).execute(
         1, "1h", datetime(2026, 1, 1), datetime(2026, 1, 2), 500
     )
 
@@ -94,11 +94,11 @@ def test_empty_store_triggers_fetch_from_start_and_publishes_event():
     assert events[0].candle_count == 3
 
 
-def test_fetch_resumes_from_latest_stored_candle():
+async def test_fetch_resumes_from_latest_stored_candle():
     store = FakeStore([candle(datetime(2026, 1, 1, 0)), candle(datetime(2026, 1, 1, 1))])
     provider = FakeProvider([[candle(datetime(2026, 1, 1, h)) for h in (1, 2, 3)]])
 
-    response = make_use_case(provider, store).execute(
+    response = await make_use_case(provider, store).execute(
         1, "1h", datetime(2026, 1, 1), datetime(2026, 1, 2), 500
     )
 
@@ -106,37 +106,37 @@ def test_fetch_resumes_from_latest_stored_candle():
     assert len(response.candles) == 4
 
 
-def test_no_fetch_when_storage_already_covers_range():
+async def test_no_fetch_when_storage_already_covers_range():
     store = FakeStore(
         [candle(datetime(2026, 1, 1, h)) for h in range(24)]
         + [candle(datetime(2026, 1, 2))]
     )
     provider = FakeProvider([])
 
-    make_use_case(provider, store).execute(
+    await make_use_case(provider, store).execute(
         1, "1h", datetime(2026, 1, 1), datetime(2026, 1, 2), 500
     )
 
     assert provider.calls == []
 
 
-def test_invalid_timeframe_is_rejected():
+async def test_invalid_timeframe_is_rejected():
     with pytest.raises(AppError) as error:
-        make_use_case(FakeProvider([]), FakeStore()).execute(
+        await make_use_case(FakeProvider([]), FakeStore()).execute(
             1, "2w", datetime(2026, 1, 1), datetime(2026, 1, 2), 500
         )
     assert error.value.code == "invalid_timeframe"
 
 
-def test_inverted_range_is_rejected():
+async def test_inverted_range_is_rejected():
     with pytest.raises(AppError) as error:
-        make_use_case(FakeProvider([]), FakeStore()).execute(
+        await make_use_case(FakeProvider([]), FakeStore()).execute(
             1, "1h", datetime(2026, 1, 2), datetime(2026, 1, 1), 500
         )
     assert error.value.code == "invalid_range"
 
 
-def test_unknown_instrument_is_rejected():
+async def test_unknown_instrument_is_rejected():
     use_case = GetOhlcvUseCase(FakeInstruments([]), FakeProvider([]), FakeStore(), EventBus())
     with pytest.raises(NotFoundError):
-        use_case.execute(99, "1h", datetime(2026, 1, 1), datetime(2026, 1, 2), 500)
+        await use_case.execute(99, "1h", datetime(2026, 1, 1), datetime(2026, 1, 2), 500)

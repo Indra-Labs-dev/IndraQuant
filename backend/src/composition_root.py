@@ -3,12 +3,13 @@
 defined here, never on concrete infrastructure directly.
 """
 
+import asyncio
 import time
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, Header
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.ai_assistant.application.use_cases.chat import ChatUseCase
 from src.modules.alert_center.application.use_cases.manage_alerts import (
@@ -227,64 +228,62 @@ market_data_provider = CompositeMarketDataRepository(
 )
 
 
-def get_db_session() -> Iterator[Session]:
-    session = SessionLocal()
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+async def get_db_session() -> AsyncIterator[AsyncSession]:
+    async with SessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 def get_login_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> LoginUseCase:
     return LoginUseCase(
         SqlAlchemyUserRepository(session), password_hasher, token_provider
     )
 
 
-def get_current_user(
+async def get_current_user(
     authorization: str | None = Header(default=None),
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> UserProfile:
     if not authorization or not authorization.startswith("Bearer "):
         raise UnauthorizedError("missing_token", "Jeton d'authentification requis.")
     use_case = GetCurrentUserUseCase(
         SqlAlchemyUserRepository(session), token_provider
     )
-    return use_case.execute(authorization.removeprefix("Bearer "))
+    return await use_case.execute(authorization.removeprefix("Bearer "))
 
 
 def get_settings_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetSettingsUseCase:
     return GetSettingsUseCase(SqlAlchemySettingsRepository(session))
 
 
 def get_update_setting_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> UpdateSettingUseCase:
     return UpdateSettingUseCase(SqlAlchemySettingsRepository(session))
 
 
 def get_list_instruments_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ListInstrumentsUseCase:
     return ListInstrumentsUseCase(SqlAlchemyInstrumentRepository(session))
 
 
 def get_market_status_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetMarketStatusUseCase:
     return GetMarketStatusUseCase(SqlAlchemyInstrumentRepository(session))
 
 
 def get_ohlcv_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetOhlcvUseCase:
     from src.shared.infrastructure.cache import redis_client
 
@@ -301,44 +300,42 @@ _REFRESH_TIMEFRAMES = ("1h", "1d")
 _REFRESH_LOOKBACK = {"1h": timedelta(days=3), "1d": timedelta(days=30)}
 
 
-def _refresh_market_data_once() -> int:
+async def _refresh_market_data_once() -> int:
     """Proactively keeps the most-used timeframes warm in storage instead of
     only ever fetching on-demand (ADR-030). Reuses `GetOhlcvUseCase`'s
     already-tested read-through ingestion — this is purely a scheduler, the
     upsert/backfill logic itself is not duplicated here."""
-    session = SessionLocal()
     refreshed = 0
-    try:
-        instruments = SqlAlchemyInstrumentRepository(session).list_instruments()
-        ohlcv = get_ohlcv_use_case(session)
-        now = datetime.now(timezone.utc)
-        equity_open = equity_market_status(now).is_open
+    async with SessionLocal() as session:
+        try:
+            instruments = await SqlAlchemyInstrumentRepository(session).list_instruments()
+            ohlcv = get_ohlcv_use_case(session)
+            now = datetime.now(timezone.utc)
+            equity_open = equity_market_status(now).is_open
 
-        for instrument in instruments:
-            if instrument.asset_class == "equity" and not equity_open:
-                event_bus.publish(MarketClosed(instrument_id=instrument.id, closed_at=now))
-                continue
-            for timeframe in _REFRESH_TIMEFRAMES:
-                try:
-                    ohlcv.execute(
-                        instrument.id,
-                        timeframe,
-                        now - _REFRESH_LOOKBACK[timeframe],
-                        now,
-                        2,
-                    )
-                    refreshed += 1
-                except Exception:
-                    pass
-                # Stagger calls so all instruments/timeframes don't hit the
-                # upstream exchange APIs in a single burst.
-                time.sleep(1)
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+            for instrument in instruments:
+                if instrument.asset_class == "equity" and not equity_open:
+                    event_bus.publish(MarketClosed(instrument_id=instrument.id, closed_at=now))
+                    continue
+                for timeframe in _REFRESH_TIMEFRAMES:
+                    try:
+                        await ohlcv.execute(
+                            instrument.id,
+                            timeframe,
+                            now - _REFRESH_LOOKBACK[timeframe],
+                            now,
+                            2,
+                        )
+                        refreshed += 1
+                    except Exception:
+                        pass
+                    # Stagger calls so all instruments/timeframes don't hit the
+                    # upstream exchange APIs in a single burst.
+                    await asyncio.sleep(1)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
     return refreshed
 
 
@@ -346,19 +343,19 @@ market_data_refresh_runner = MarketDataRefreshRunner(_refresh_market_data_once)
 
 
 def get_compute_indicators_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ComputeIndicatorsUseCase:
     return ComputeIndicatorsUseCase(get_ohlcv_use_case(session))
 
 
 def get_volume_profile_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetVolumeProfileUseCase:
     return GetVolumeProfileUseCase(get_ohlcv_use_case(session))
 
 
 def get_detect_patterns_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> DetectPatternsUseCase:
     return DetectPatternsUseCase(get_ohlcv_use_case(session))
 
@@ -392,7 +389,7 @@ def get_news_intelligence_use_case() -> AnalyzeNewsIntelligenceUseCase:
 
 
 def get_news_price_correlation_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetNewsPriceCorrelationUseCase:
     return GetNewsPriceCorrelationUseCase(
         get_analyze_sentiment_use_case(), get_ohlcv_use_case(session)
@@ -400,7 +397,7 @@ def get_news_price_correlation_use_case(
 
 
 def get_predict_direction_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> PredictDirectionUseCase:
     from src.shared.infrastructure.cache import redis_client
 
@@ -416,90 +413,86 @@ def get_predict_direction_use_case(
 
 
 def get_model_registry_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetModelRegistryUseCase:
     return GetModelRegistryUseCase(SqlAlchemyModelVersionRepository(session))
 
 
 def get_rollback_model_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> RollbackModelUseCase:
     return RollbackModelUseCase(SqlAlchemyModelVersionRepository(session))
 
 
 def get_run_ab_test_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> RunAbTestUseCase:
     return RunAbTestUseCase(SqlAlchemyModelVersionRepository(session))
 
 
-def _resolve_predictions_once() -> None:
-    session = SessionLocal()
-    try:
-        ResolvePredictionsUseCase(
-            SqlAlchemyPredictionRepository(session), get_ohlcv_use_case(session)
-        ).execute()
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+async def _resolve_predictions_once() -> None:
+    async with SessionLocal() as session:
+        try:
+            await ResolvePredictionsUseCase(
+                SqlAlchemyPredictionRepository(session), get_ohlcv_use_case(session)
+            ).execute()
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 prediction_resolver_runner = PredictionResolverRunner(_resolve_predictions_once)
 
 
 def get_prediction_dashboard_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetPredictionDashboardUseCase:
     return GetPredictionDashboardUseCase(
         SqlAlchemyPredictionRepository(session), SqlAlchemyInstrumentRepository(session)
     )
 
 
-def _run_prediction_once(instrument_id: int, timeframe: str) -> None:
-    session = SessionLocal()
-    try:
-        get_predict_direction_use_case(session).execute(instrument_id, timeframe)
-        session.commit()
-        event_bus.publish(
-            TrainingFinished(
-                instrument_id=instrument_id,
-                timeframe=timeframe,
-                finished_at=datetime.now(timezone.utc),
+async def _run_prediction_once(instrument_id: int, timeframe: str) -> None:
+    async with SessionLocal() as session:
+        try:
+            await get_predict_direction_use_case(session).execute(instrument_id, timeframe)
+            await session.commit()
+            event_bus.publish(
+                TrainingFinished(
+                    instrument_id=instrument_id,
+                    timeframe=timeframe,
+                    finished_at=datetime.now(timezone.utc),
+                )
             )
-        )
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 training_runner = TrainingRunner(_run_prediction_once)
 
 
 def get_manage_training_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ManageTrainingUseCase:
     return ManageTrainingUseCase(training_runner, SqlAlchemyInstrumentRepository(session))
 
 
 def get_detect_smc_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> DetectSmcUseCase:
     return DetectSmcUseCase(get_ohlcv_use_case(session))
 
 
 def get_market_regime_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetMarketRegimeUseCase:
     return GetMarketRegimeUseCase(get_ohlcv_use_case(session))
 
 
 def get_correlation_matrix_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetCorrelationMatrixUseCase:
     return GetCorrelationMatrixUseCase(
         get_ohlcv_use_case(session), SqlAlchemyInstrumentRepository(session)
@@ -519,7 +512,7 @@ def get_feature_store_service() -> FeatureStoreService:
 
 
 def get_feature_vector_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetFeatureVectorUseCase:
     return GetFeatureVectorUseCase(
         get_ohlcv_use_case(session), get_feature_store_service()
@@ -527,7 +520,7 @@ def get_feature_vector_use_case(
 
 
 def get_drift_report_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetDriftReportUseCase:
     return GetDriftReportUseCase(
         get_ohlcv_use_case(session), SqlAlchemyPredictionRepository(session)
@@ -535,37 +528,37 @@ def get_drift_report_use_case(
 
 
 def get_validate_model_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ValidatePredictionModelUseCase:
     return ValidatePredictionModelUseCase(get_ohlcv_use_case(session))
 
 
 def get_validate_backtest_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ValidateBacktestUseCase:
     return ValidateBacktestUseCase(get_ohlcv_use_case(session))
 
 
 def get_optimize_strategy_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> OptimizeStrategyUseCase:
     return OptimizeStrategyUseCase(get_ohlcv_use_case(session))
 
 
 def get_optimize_model_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> OptimizeModelHyperparametersUseCase:
     return OptimizeModelHyperparametersUseCase(get_ohlcv_use_case(session))
 
 
 def get_risk_profile_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetRiskProfileUseCase:
     return GetRiskProfileUseCase(get_ohlcv_use_case(session))
 
 
 def get_shap_history_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetShapHistoryUseCase:
     from src.shared.infrastructure.cache import redis_client
 
@@ -573,7 +566,7 @@ def get_shap_history_use_case(
 
 
 def get_global_feature_importance_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetGlobalFeatureImportanceUseCase:
     from src.shared.infrastructure.cache import redis_client
 
@@ -583,7 +576,7 @@ def get_global_feature_importance_use_case(
 
 
 def get_feature_evolution_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetFeatureEvolutionUseCase:
     from src.shared.infrastructure.cache import redis_client
 
@@ -593,7 +586,7 @@ def get_feature_evolution_use_case(
 
 
 def get_compare_explanations_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> CompareExplanationsUseCase:
     from src.shared.infrastructure.cache import redis_client
 
@@ -601,13 +594,13 @@ def get_compare_explanations_use_case(
 
 
 def get_exposure_report_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetExposureReportUseCase:
     return GetExposureReportUseCase(get_portfolio_summary_use_case(session))
 
 
 def get_risk_budget_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetRiskBudgetUseCase:
     return GetRiskBudgetUseCase(
         get_portfolio_summary_use_case(session), get_ohlcv_use_case(session)
@@ -615,7 +608,7 @@ def get_risk_budget_use_case(
 
 
 def get_meta_decision_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetMetaDecisionUseCase:
     return GetMetaDecisionUseCase(
         get_ohlcv_use_case(session),
@@ -629,7 +622,7 @@ def get_meta_decision_use_case(
 
 
 def get_global_confidence_score_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetGlobalConfidenceScoreUseCase:
     return GetGlobalConfidenceScoreUseCase(
         get_meta_decision_use_case(session),
@@ -639,7 +632,7 @@ def get_global_confidence_score_use_case(
     )
 
 
-def get_chat_use_case(session: Session = Depends(get_db_session)) -> ChatUseCase:
+def get_chat_use_case(session: AsyncSession = Depends(get_db_session)) -> ChatUseCase:
     return ChatUseCase(
         get_list_instruments_use_case(session),
         get_ohlcv_use_case(session),
@@ -648,30 +641,28 @@ def get_chat_use_case(session: Session = Depends(get_db_session)) -> ChatUseCase
 
 
 def get_manage_alerts_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ManageAlertsUseCase:
     return ManageAlertsUseCase(SqlAlchemyAlertRepository(session))
 
 
-def _check_alerts_once() -> None:
-    session = SessionLocal()
-    try:
-        CheckAlertsUseCase(
-            SqlAlchemyAlertRepository(session), get_ohlcv_use_case(session), event_bus
-        ).execute()
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+async def _check_alerts_once() -> None:
+    async with SessionLocal() as session:
+        try:
+            await CheckAlertsUseCase(
+                SqlAlchemyAlertRepository(session), get_ohlcv_use_case(session), event_bus
+            ).execute()
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 alert_runner = AlertRunner(_check_alerts_once)
 
 
 def get_run_backtest_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> RunBacktestUseCase:
     return RunBacktestUseCase(
         get_ohlcv_use_case(session), SqlAlchemyBacktestRunRepository(session)
@@ -679,19 +670,19 @@ def get_run_backtest_use_case(
 
 
 def get_walk_forward_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> WalkForwardUseCase:
     return WalkForwardUseCase(get_ohlcv_use_case(session))
 
 
 def get_backtest_repository(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> SqlAlchemyBacktestRunRepository:
     return SqlAlchemyBacktestRunRepository(session)
 
 
 def get_manage_sessions_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> ManageSessionsUseCase:
     return ManageSessionsUseCase(
         SqlAlchemyPaperTradingRepository(session), get_ohlcv_use_case(session)
@@ -699,39 +690,34 @@ def get_manage_sessions_use_case(
 
 
 def get_portfolio_summary_use_case(
-    session: Session = Depends(get_db_session),
+    session: AsyncSession = Depends(get_db_session),
 ) -> GetPortfolioSummaryUseCase:
     return GetPortfolioSummaryUseCase(
         get_manage_sessions_use_case(session), SqlAlchemyInstrumentRepository(session)
     )
 
 
-def _process_paper_tick(session_id: int) -> None:
-    session = SessionLocal()
-    try:
-        ProcessTickUseCase(
-            SqlAlchemyPaperTradingRepository(session), get_ohlcv_use_case(session), event_bus
-        ).execute(session_id)
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+async def _process_paper_tick(session_id: int) -> None:
+    async with SessionLocal() as session:
+        try:
+            await ProcessTickUseCase(
+                SqlAlchemyPaperTradingRepository(session), get_ohlcv_use_case(session), event_bus
+            ).execute(session_id)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 paper_trading_runner = PaperTradingRunner(_process_paper_tick)
 
 
-def resume_running_paper_sessions() -> None:
-    session = SessionLocal()
-    try:
+async def resume_running_paper_sessions() -> None:
+    async with SessionLocal() as session:
         repository = SqlAlchemyPaperTradingRepository(session)
-        for model in repository.list_sessions():
+        for model in await repository.list_sessions():
             if model.status == "running":
                 paper_trading_runner.start(model.id, model.timeframe)
-    finally:
-        session.close()
 
 
 _SEED_EXCHANGES = (
@@ -777,7 +763,7 @@ _SEED_EXCHANGES = (
 _SEED_SETTINGS = (("language", "fr"), ("theme", "dark"))
 
 
-def bootstrap() -> None:
+async def bootstrap() -> None:
     """Idempotent single-user + referential seed (ADR-013)."""
     from sqlalchemy import select
 
@@ -786,60 +772,58 @@ def bootstrap() -> None:
         SettingModel,
     )
 
-    session = SessionLocal()
-    try:
-        user = session.scalar(
-            select(UserModel).where(UserModel.email == settings.admin_email)
-        )
-        if user is None:
-            user = UserModel(
-                email=settings.admin_email,
-                password_hash=password_hasher.hash(settings.admin_password),
+    async with SessionLocal() as session:
+        try:
+            user = await session.scalar(
+                select(UserModel).where(UserModel.email == settings.admin_email)
             )
-            session.add(user)
-            session.flush()
-
-        for source_id, display_name, instruments in _SEED_EXCHANGES:
-            exchange = session.scalar(
-                select(ExchangeModel).where(ExchangeModel.ccxt_id == source_id)
-            )
-            if exchange is None:
-                exchange = ExchangeModel(ccxt_id=source_id, display_name=display_name)
-                session.add(exchange)
-                session.flush()
-
-            for symbol, base, quote, asset_class in instruments:
-                exists = session.scalar(
-                    select(InstrumentModel).where(
-                        InstrumentModel.exchange_id == exchange.id,
-                        InstrumentModel.symbol == symbol,
-                    )
+            if user is None:
+                user = UserModel(
+                    email=settings.admin_email,
+                    password_hash=password_hasher.hash(settings.admin_password),
                 )
-                if exists is None:
-                    session.add(
-                        InstrumentModel(
-                            exchange_id=exchange.id,
-                            symbol=symbol,
-                            base_asset=base,
-                            quote_asset=quote,
-                            asset_class=asset_class,
+                session.add(user)
+                await session.flush()
+
+            for source_id, display_name, instruments in _SEED_EXCHANGES:
+                exchange = await session.scalar(
+                    select(ExchangeModel).where(ExchangeModel.ccxt_id == source_id)
+                )
+                if exchange is None:
+                    exchange = ExchangeModel(ccxt_id=source_id, display_name=display_name)
+                    session.add(exchange)
+                    await session.flush()
+
+                for symbol, base, quote, asset_class in instruments:
+                    exists = await session.scalar(
+                        select(InstrumentModel).where(
+                            InstrumentModel.exchange_id == exchange.id,
+                            InstrumentModel.symbol == symbol,
                         )
                     )
+                    if exists is None:
+                        session.add(
+                            InstrumentModel(
+                                exchange_id=exchange.id,
+                                symbol=symbol,
+                                base_asset=base,
+                                quote_asset=quote,
+                                asset_class=asset_class,
+                            )
+                        )
 
-        existing_keys = {
-            s.setting_key
-            for s in session.scalars(
-                select(SettingModel).where(SettingModel.user_id == user.id)
-            )
-        }
-        repo = SqlAlchemySettingsRepository(session)
-        for key, value in _SEED_SETTINGS:
-            if key not in existing_keys:
-                repo.upsert(user.id, key, value)
+            existing_keys = {
+                s.setting_key
+                for s in await session.scalars(
+                    select(SettingModel).where(SettingModel.user_id == user.id)
+                )
+            }
+            repo = SqlAlchemySettingsRepository(session)
+            for key, value in _SEED_SETTINGS:
+                if key not in existing_keys:
+                    await repo.upsert(user.id, key, value)
 
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise

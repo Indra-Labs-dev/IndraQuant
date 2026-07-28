@@ -1,12 +1,14 @@
 fastapi
 uvicorn[standard]
 sqlalchemy
+asyncpg
 alembic
 pydantic
 pydantic-settings
-pymysql
+psycopg[binary]
 redis
 ccxt
+yfinance
 PyJWT
 bcrypt
 xgboost
@@ -15,6 +17,7 @@ scikit-learn
 pandas
 numpy
 pytest
+pytest-asyncio
 httpx
 optuna
 hyperopt

@@ -11,10 +11,10 @@ router = APIRouter(tags=["confidence-score"])
 
 
 @router.get("/instruments/{instrument_id}/confidence-score")
-def get_global_confidence_score(
+async def get_global_confidence_score(
     instrument_id: int,
     timeframe: str = Query(default="1h"),
     _: UserProfile = Depends(get_current_user),
     use_case: GetGlobalConfidenceScoreUseCase = Depends(get_global_confidence_score_use_case),
 ) -> GlobalConfidenceResponse:
-    return use_case.execute(instrument_id, timeframe)
+    return await use_case.execute(instrument_id, timeframe)

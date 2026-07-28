@@ -46,10 +46,10 @@ class GetGlobalConfidenceScoreUseCase:
         self._instruments = instruments
         self._ohlcv = ohlcv
 
-    def execute(self, instrument_id: int, timeframe: str) -> GlobalConfidenceResponse:
-        decision = self._meta_decision.execute(instrument_id, timeframe)
+    async def execute(self, instrument_id: int, timeframe: str) -> GlobalConfidenceResponse:
+        decision = await self._meta_decision.execute(instrument_id, timeframe)
 
-        correlation_factor = self._correlation_factor(
+        correlation_factor = await self._correlation_factor(
             instrument_id, timeframe, decision.direction
         )
         volatility_factor = volatility_penalty_factor(
@@ -76,21 +76,18 @@ class GetGlobalConfidenceScoreUseCase:
             explanation=result.explanation,
         )
 
-    def _correlation_factor(self, instrument_id: int, timeframe: str, direction: str):
+    async def _correlation_factor(self, instrument_id: int, timeframe: str, direction: str):
         try:
-            target = self._instruments.get(instrument_id)
+            target = await self._instruments.get(instrument_id)
             if target is None:
                 return correlation_confirmation_factor(direction, [])
 
-            peer_ids = [
-                peer.id
-                for peer in self._instruments.list_instruments(asset_class=target.asset_class)
-                if peer.id != instrument_id
-            ][:_MAX_PEERS]
+            all_peers = await self._instruments.list_instruments(asset_class=target.asset_class)
+            peer_ids = [peer.id for peer in all_peers if peer.id != instrument_id][:_MAX_PEERS]
             if not peer_ids:
                 return correlation_confirmation_factor(direction, [])
 
-            matrix = self._correlation.execute([instrument_id, *peer_ids], timeframe)
+            matrix = await self._correlation.execute([instrument_id, *peer_ids], timeframe)
             pearson_by_peer: dict[int, float | None] = {}
             for pair in matrix.pairs:
                 other = (
@@ -100,19 +97,19 @@ class GetGlobalConfidenceScoreUseCase:
                     pearson_by_peer[other] = pair.pearson
 
             peers = [
-                (pearson_by_peer.get(peer_id), self._peer_direction(peer_id, timeframe))
+                (pearson_by_peer.get(peer_id), await self._peer_direction(peer_id, timeframe))
                 for peer_id in peer_ids
             ]
             return correlation_confirmation_factor(direction, peers)
         except Exception:
             return correlation_confirmation_factor(direction, [])
 
-    def _peer_direction(self, peer_id: int, timeframe: str) -> str:
+    async def _peer_direction(self, peer_id: int, timeframe: str) -> str:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * 5)
         try:
-            response = self._ohlcv.execute(peer_id, timeframe, start, end, 5)
+            response = await self._ohlcv.execute(peer_id, timeframe, start, end, 5)
         except Exception:
             return "neutral"
         closes = [c.close for c in response.candles]

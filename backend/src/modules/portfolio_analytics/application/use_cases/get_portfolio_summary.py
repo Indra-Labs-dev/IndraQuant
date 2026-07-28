@@ -41,8 +41,9 @@ class GetPortfolioSummaryUseCase:
         self._manage_sessions = manage_sessions
         self._instruments = instruments
 
-    def execute(self) -> PortfolioSummary:
-        sessions = self._manage_sessions.list_sessions().sessions
+    async def execute(self) -> PortfolioSummary:
+        sessions_response = await self._manage_sessions.list_sessions()
+        sessions = sessions_response.sessions
 
         total_equity = 0.0
         total_initial_capital = 0.0
@@ -57,7 +58,7 @@ class GetPortfolioSummaryUseCase:
             else:
                 stopped += 1
 
-            detail = self._manage_sessions.detail(session.id)
+            detail = await self._manage_sessions.detail(session.id)
             total_equity += detail.analytics.equity
             total_initial_capital += session.initial_capital
             total_fees += detail.analytics.fees_paid
@@ -68,7 +69,7 @@ class GetPortfolioSummaryUseCase:
 
         allocation: list[InstrumentAllocation] = []
         for instrument_id, equity in equity_by_instrument.items():
-            instrument = self._instruments.get(instrument_id)
+            instrument = await self._instruments.get(instrument_id)
             allocation.append(
                 InstrumentAllocation(
                     instrument_id=instrument_id,

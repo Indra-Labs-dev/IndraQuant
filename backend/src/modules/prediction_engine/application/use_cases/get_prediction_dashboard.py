@@ -72,22 +72,23 @@ class GetPredictionDashboardUseCase:
         self._predictions = predictions
         self._instruments = instruments
 
-    def execute(
+    async def execute(
         self, timeframe: str, instrument_id: int | None, limit: int
     ) -> PredictionDashboard:
         summary = [
-            TimeframeSummary(**row) for row in self._predictions.summary_by_timeframe()
+            TimeframeSummary(**row)
+            for row in await self._predictions.summary_by_timeframe()
         ]
 
         calibration: list[CalibrationBucket] = []
         low = 0.5
         while low < 1.0 - 1e-9:
             high = round(low + BUCKET_WIDTH, 4)
-            n, accuracy = self._predictions.calibration_stats(timeframe, low, high)
+            n, accuracy = await self._predictions.calibration_stats(timeframe, low, high)
             calibration.append(CalibrationBucket(low=low, high=high, n=n, accuracy=accuracy))
             low = high
 
-        resolved_rows = self._predictions.list_resolved_ordered(instrument_id, timeframe)
+        resolved_rows = await self._predictions.list_resolved_ordered(instrument_id, timeframe)
         trend_values = rolling_accuracy_trend([bool(r.correct) for r in resolved_rows])
         accuracy_trend = [
             AccuracyTrendPoint(
@@ -99,7 +100,8 @@ class GetPredictionDashboardUseCase:
             for i, (row, value) in enumerate(zip(resolved_rows, trend_values))
         ]
 
-        symbols = {i.id: i.symbol for i in self._instruments.list_instruments()}
+        all_instruments = await self._instruments.list_instruments()
+        symbols = {i.id: i.symbol for i in all_instruments}
         recent = [
             PredictionRecord(
                 id=r.id,
@@ -114,7 +116,7 @@ class GetPredictionDashboardUseCase:
                 correct=r.correct,
                 resolved_at=_utc(r.resolved_at) if r.resolved_at else None,
             )
-            for r in self._predictions.list_recent(instrument_id, timeframe, limit)
+            for r in await self._predictions.list_recent(instrument_id, timeframe, limit)
         ]
 
         return PredictionDashboard(

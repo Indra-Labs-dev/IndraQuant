@@ -1,7 +1,5 @@
 import asyncio
-from typing import Callable
-
-from starlette.concurrency import run_in_threadpool
+from typing import Awaitable, Callable
 
 _CHECK_INTERVAL_SECONDS = 30
 
@@ -11,7 +9,7 @@ class PredictionResolverRunner:
     pending predictions and records real outcomes, feeding the calibration
     loop described in ADR-020."""
 
-    def __init__(self, resolve: Callable[[], int]) -> None:
+    def __init__(self, resolve: Callable[[], Awaitable[int]]) -> None:
         self._resolve = resolve
         self._task: asyncio.Task | None = None
 
@@ -28,7 +26,7 @@ class PredictionResolverRunner:
         try:
             while True:
                 try:
-                    await run_in_threadpool(self._resolve)
+                    await self._resolve()
                 except Exception:
                     pass
                 await asyncio.sleep(_CHECK_INTERVAL_SECONDS)

@@ -80,11 +80,11 @@ class GetMetaDecisionUseCase:
         self._regime = regime
         self._feature_store = feature_store or FeatureStoreService()
 
-    def execute(self, instrument_id: int, timeframe: str) -> MetaDecisionResponse:
+    async def execute(self, instrument_id: int, timeframe: str) -> MetaDecisionResponse:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * _CANDLE_WINDOW)
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
+        response = await self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
 
         closes = [c.close for c in response.candles]
         volumes = [c.volume for c in response.candles]
@@ -96,10 +96,10 @@ class GetMetaDecisionUseCase:
                 422,
             )
 
-        smc_signals = self._recent_smc_signals(instrument_id, timeframe, start, end)
-        regime = self._detect_regime(instrument_id, timeframe)
+        smc_signals = await self._recent_smc_signals(instrument_id, timeframe, start, end)
+        regime = await self._detect_regime(instrument_id, timeframe)
         as_of = response.candles[-1].open_time
-        features = self._feature_store.get_latest(
+        features = await self._feature_store.get_latest(
             instrument_id, response.timeframe, as_of, closes, volumes
         )
 
@@ -108,8 +108,8 @@ class GetMetaDecisionUseCase:
             mean_reversion_engine(features),
             volatility_engine(features),
             liquidity_engine(features, smc_signals),
-            self._ml_signal(instrument_id, timeframe),
-            self._news_signal(),
+            await self._ml_signal(instrument_id, timeframe),
+            await self._news_signal(),
             self._macro_signal(end),
         ]
         weights = self._regime_adjusted_weights(regime)
@@ -155,13 +155,13 @@ class GetMetaDecisionUseCase:
             explanation=explanation,
         )
 
-    def _detect_regime(
+    async def _detect_regime(
         self, instrument_id: int, timeframe: str
     ) -> MarketRegime | None:
         if self._regime is None:
             return None
         try:
-            return self._regime.detect(instrument_id, timeframe)
+            return await self._regime.detect(instrument_id, timeframe)
         except Exception:
             return None
 
@@ -184,22 +184,23 @@ class GetMetaDecisionUseCase:
 
         return weights
 
-    def _recent_smc_signals(
+    async def _recent_smc_signals(
         self, instrument_id: int, timeframe: str, start: datetime, end: datetime
     ) -> list[tuple[str, float]]:
         try:
-            detections = self._smc.execute(
+            smc_response = await self._smc.execute(
                 instrument_id, timeframe, start, end, 2000
-            ).detections
+            )
+            detections = smc_response.detections
         except Exception:
             return []
         return [
             (d.direction, d.confidence) for d in detections[-_SMC_SIGNAL_COUNT:]
         ]
 
-    def _ml_signal(self, instrument_id: int, timeframe: str) -> EngineSignal:
+    async def _ml_signal(self, instrument_id: int, timeframe: str) -> EngineSignal:
         try:
-            prediction: DirectionPrediction = self._ml.execute(instrument_id, timeframe)
+            prediction: DirectionPrediction = await self._ml.execute(instrument_id, timeframe)
         except AppError as error:
             return EngineSignal(
                 "ml", "neutral", 0.0, 0.0,
@@ -232,13 +233,13 @@ class GetMetaDecisionUseCase:
             ),
         )
 
-    def _news_signal(self) -> EngineSignal:
+    async def _news_signal(self) -> EngineSignal:
         if self._news is None:
             return EngineSignal(
                 "news", "neutral", 0.0, 0.0, "Moteur d'actualités non configuré."
             )
         try:
-            sentiment: SentimentResponse = self._news.execute(limit=8)
+            sentiment: SentimentResponse = await self._news.execute(limit=8)
         except Exception:
             return EngineSignal(
                 "news",

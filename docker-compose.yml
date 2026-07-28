@@ -1,0 +1,33 @@
+# Rejoint le reseau externe `indralabs-network` du Homelab (~/Homelab) pour
+# atteindre Postgres/Redis par nom de service, comme documente dans
+# ~/Homelab/README.md ("Connecter un nouveau projet") - ce projet ne redeploie
+# PAS ses propres Postgres/Redis, il reutilise ceux du Homelab (deja lances
+# via ~/Homelab/scripts/start.sh).
+#
+# Prealable : la base "indraquant" doit exister sur le Postgres partage
+# (~/Homelab/scripts/create-database.sh indraquant) et backend/.env doit
+# etre rempli (cp backend/.env.example backend/.env).
+#
+# Le frontend reste natif (npm run dev) - hors scope de ce compose.
+services:
+  backend:
+    build: ./backend
+    container_name: indraquant-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # Depuis un conteneur sur indralabs-network, Postgres/Redis se
+      # resolvent par nom de service - deja le cas dans backend/.env
+      # (DATABASE_URL/REDIS_URL pointent vers postgres/redis).
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8100:8100"
+    networks:
+      - indralabs-network
+
+networks:
+  indralabs-network:
+    external: true

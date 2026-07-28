@@ -1,8 +1,9 @@
 from datetime import datetime
 
 from sqlalchemy import BigInteger, DateTime, String, Text, UniqueConstraint, func, select
-from sqlalchemy.dialects.mysql import insert as mysql_insert
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.modules.settings.domain.entities import Setting
 from src.shared.infrastructure.database import Base
@@ -25,22 +26,23 @@ class SettingModel(Base):
 
 
 class SqlAlchemySettingsRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def get_all(self, user_id: int) -> list[Setting]:
-        models = self._session.scalars(
+    async def get_all(self, user_id: int) -> list[Setting]:
+        models = await self._session.scalars(
             select(SettingModel).where(SettingModel.user_id == user_id)
         )
         return [Setting(key=m.setting_key, value=m.setting_value) for m in models]
 
-    def upsert(self, user_id: int, key: str, value: str) -> Setting:
-        statement = mysql_insert(SettingModel).values(
+    async def upsert(self, user_id: int, key: str, value: str) -> Setting:
+        statement = pg_insert(SettingModel).values(
             user_id=user_id, setting_key=key, setting_value=value
         )
-        statement = statement.on_duplicate_key_update(
-            setting_value=statement.inserted.setting_value
+        statement = statement.on_conflict_do_update(
+            index_elements=["user_id", "setting_key"],
+            set_={"setting_value": statement.excluded.setting_value},
         )
-        self._session.execute(statement)
-        self._session.flush()
+        await self._session.execute(statement)
+        await self._session.flush()
         return Setting(key=key, value=value)

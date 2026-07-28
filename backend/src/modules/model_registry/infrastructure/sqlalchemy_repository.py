@@ -13,7 +13,8 @@ from sqlalchemy import (
     select,
     update,
 )
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.shared.infrastructure.database import Base
 
@@ -41,11 +42,11 @@ class ModelVersionModel(Base):
 
 
 class SqlAlchemyModelVersionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def next_version(self, instrument_id: int, timeframe: str) -> int:
-        current_max = self._session.scalar(
+    async def next_version(self, instrument_id: int, timeframe: str) -> int:
+        current_max = await self._session.scalar(
             select(func.max(ModelVersionModel.version)).where(
                 ModelVersionModel.instrument_id == instrument_id,
                 ModelVersionModel.timeframe == timeframe,
@@ -53,10 +54,10 @@ class SqlAlchemyModelVersionRepository:
         )
         return (current_max or 0) + 1
 
-    def get_current_champion(
+    async def get_current_champion(
         self, instrument_id: int, timeframe: str
     ) -> ModelVersionModel | None:
-        return self._session.scalar(
+        return await self._session.scalar(
             select(ModelVersionModel)
             .where(
                 ModelVersionModel.instrument_id == instrument_id,
@@ -67,13 +68,13 @@ class SqlAlchemyModelVersionRepository:
             .limit(1)
         )
 
-    def add(self, model: ModelVersionModel) -> ModelVersionModel:
+    async def add(self, model: ModelVersionModel) -> ModelVersionModel:
         self._session.add(model)
-        self._session.flush()
+        await self._session.flush()
         return model
 
-    def clear_champion(self, instrument_id: int, timeframe: str) -> None:
-        self._session.execute(
+    async def clear_champion(self, instrument_id: int, timeframe: str) -> None:
+        await self._session.execute(
             update(ModelVersionModel)
             .where(
                 ModelVersionModel.instrument_id == instrument_id,
@@ -82,11 +83,11 @@ class SqlAlchemyModelVersionRepository:
             .values(is_champion=False)
         )
 
-    def list_versions(
+    async def list_versions(
         self, instrument_id: int, timeframe: str, limit: int = 50
     ) -> list[ModelVersionModel]:
         return list(
-            self._session.scalars(
+            await self._session.scalars(
                 select(ModelVersionModel)
                 .where(
                     ModelVersionModel.instrument_id == instrument_id,
@@ -97,10 +98,10 @@ class SqlAlchemyModelVersionRepository:
             )
         )
 
-    def get_by_version(
+    async def get_by_version(
         self, instrument_id: int, timeframe: str, version: int
     ) -> ModelVersionModel | None:
-        return self._session.scalar(
+        return await self._session.scalar(
             select(ModelVersionModel).where(
                 ModelVersionModel.instrument_id == instrument_id,
                 ModelVersionModel.timeframe == timeframe,
@@ -108,8 +109,8 @@ class SqlAlchemyModelVersionRepository:
             )
         )
 
-    def mark_rolled_back_after(self, instrument_id: int, timeframe: str, version: int) -> None:
-        self._session.execute(
+    async def mark_rolled_back_after(self, instrument_id: int, timeframe: str, version: int) -> None:
+        await self._session.execute(
             update(ModelVersionModel)
             .where(
                 ModelVersionModel.instrument_id == instrument_id,
@@ -119,9 +120,9 @@ class SqlAlchemyModelVersionRepository:
             .values(rolled_back=True, is_champion=False)
         )
 
-    def set_champion(self, instrument_id: int, timeframe: str, version: int) -> None:
-        self.clear_champion(instrument_id, timeframe)
-        self._session.execute(
+    async def set_champion(self, instrument_id: int, timeframe: str, version: int) -> None:
+        await self.clear_champion(instrument_id, timeframe)
+        await self._session.execute(
             update(ModelVersionModel)
             .where(
                 ModelVersionModel.instrument_id == instrument_id,

@@ -1,7 +1,5 @@
 import asyncio
-from typing import Callable
-
-from starlette.concurrency import run_in_threadpool
+from typing import Awaitable, Callable
 
 _CHECK_INTERVAL_SECONDS = 30
 
@@ -10,7 +8,7 @@ class AlertRunner:
     """Periodic in-process checker (docs/04 Event-Driven — simple polling is
     enough at Phase 6 scale; no message queue needed)."""
 
-    def __init__(self, check_alerts: Callable[[], int]) -> None:
+    def __init__(self, check_alerts: Callable[[], Awaitable[int]]) -> None:
         self._check_alerts = check_alerts
         self._task: asyncio.Task | None = None
 
@@ -27,7 +25,7 @@ class AlertRunner:
         try:
             while True:
                 try:
-                    await run_in_threadpool(self._check_alerts)
+                    await self._check_alerts()
                 except Exception:
                     pass
                 await asyncio.sleep(_CHECK_INTERVAL_SECONDS)

@@ -11,10 +11,10 @@ router = APIRouter(tags=["feature-store"])
 
 
 @router.get("/instruments/{instrument_id}/features")
-def get_features(
+async def get_features(
     instrument_id: int,
     timeframe: str = Query(default="1h"),
     _: UserProfile = Depends(get_current_user),
     use_case: GetFeatureVectorUseCase = Depends(get_feature_vector_use_case),
 ) -> FeatureVectorResponse:
-    return use_case.execute(instrument_id, timeframe)
+    return await use_case.execute(instrument_id, timeframe)

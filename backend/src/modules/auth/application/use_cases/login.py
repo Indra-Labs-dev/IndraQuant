@@ -15,8 +15,8 @@ class LoginUseCase:
         self._hasher = hasher
         self._tokens = tokens
 
-    def execute(self, request: LoginRequest) -> LoginResponse:
-        user = self._users.get_by_email(request.email)
+    async def execute(self, request: LoginRequest) -> LoginResponse:
+        user = await self._users.get_by_email(request.email)
         if user is None or not self._hasher.verify(
             request.password, user.password_hash
         ):

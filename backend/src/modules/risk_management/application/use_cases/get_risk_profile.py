@@ -40,7 +40,7 @@ class GetRiskProfileUseCase:
     def __init__(self, ohlcv: OhlcvProvider) -> None:
         self._ohlcv = ohlcv
 
-    def execute(
+    async def execute(
         self,
         instrument_id: int,
         timeframe: str,
@@ -51,7 +51,7 @@ class GetRiskProfileUseCase:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * _CANDLE_WINDOW)
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
+        response = await self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
 
         closes = [c.close for c in response.candles]
         if len(closes) < _MIN_ROWS:

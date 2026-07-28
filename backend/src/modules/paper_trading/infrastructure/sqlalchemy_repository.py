@@ -11,7 +11,8 @@ from sqlalchemy import (
     func,
     select,
 )
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.shared.infrastructure.database import Base
 
@@ -61,42 +62,42 @@ class PaperTradeModel(Base):
 
 
 class SqlAlchemyPaperTradingRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def get(self, session_id: int) -> PaperSessionModel | None:
-        return self._session.get(PaperSessionModel, session_id)
+    async def get(self, session_id: int) -> PaperSessionModel | None:
+        return await self._session.get(PaperSessionModel, session_id)
 
-    def list_sessions(self) -> list[PaperSessionModel]:
+    async def list_sessions(self) -> list[PaperSessionModel]:
         return list(
-            self._session.scalars(
+            await self._session.scalars(
                 select(PaperSessionModel).order_by(PaperSessionModel.id.desc())
             )
         )
 
-    def list_running_ids(self) -> list[int]:
+    async def list_running_ids(self) -> list[int]:
         return list(
-            self._session.scalars(
+            await self._session.scalars(
                 select(PaperSessionModel.id).where(
                     PaperSessionModel.status == "running"
                 )
             )
         )
 
-    def trades_for(self, session_id: int) -> list[PaperTradeModel]:
+    async def trades_for(self, session_id: int) -> list[PaperTradeModel]:
         return list(
-            self._session.scalars(
+            await self._session.scalars(
                 select(PaperTradeModel)
                 .where(PaperTradeModel.session_id == session_id)
                 .order_by(PaperTradeModel.executed_at)
             )
         )
 
-    def add_session(self, model: PaperSessionModel) -> PaperSessionModel:
+    async def add_session(self, model: PaperSessionModel) -> PaperSessionModel:
         self._session.add(model)
-        self._session.flush()
+        await self._session.flush()
         return model
 
-    def add_trade(self, model: PaperTradeModel) -> None:
+    async def add_trade(self, model: PaperTradeModel) -> None:
         self._session.add(model)
-        self._session.flush()
+        await self._session.flush()

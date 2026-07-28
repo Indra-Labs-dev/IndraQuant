@@ -24,7 +24,7 @@ class FeatureStoreService:
     def __init__(self, cache=None) -> None:
         self._cache = cache
 
-    def get_latest(
+    async def get_latest(
         self,
         instrument_id: int,
         timeframe: str,
@@ -35,7 +35,7 @@ class FeatureStoreService:
         cache_key = f"feature_store:{instrument_id}:{timeframe}:{as_of.isoformat()}"
         if self._cache is not None:
             try:
-                cached = self._cache.get(cache_key)
+                cached = await self._cache.get(cache_key)
                 if cached:
                     payload = json.loads(cached)
                     return FeatureVector(
@@ -55,7 +55,7 @@ class FeatureStoreService:
                 payload.pop("instrument_id")
                 payload.pop("timeframe")
                 payload.pop("as_of")
-                self._cache.set(cache_key, json.dumps(payload), ex=_CACHE_TTL_SECONDS)
+                await self._cache.set(cache_key, json.dumps(payload), ex=_CACHE_TTL_SECONDS)
             except Exception:
                 pass
         return vector

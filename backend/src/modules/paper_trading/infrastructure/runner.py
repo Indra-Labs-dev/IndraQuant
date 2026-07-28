@@ -1,8 +1,5 @@
 import asyncio
-from concurrent.futures import Future
-from typing import Callable
-
-from starlette.concurrency import run_in_threadpool
+from typing import Awaitable, Callable
 
 _MIN_POLL_SECONDS = 2
 _MAX_POLL_SECONDS = 30
@@ -15,45 +12,41 @@ _TIMEFRAME_SECONDS = {
 
 class PaperTradingRunner:
     """Keeps one polling coroutine per running paper session on the main
-    event loop. start/stop are callable from worker threads (sync routes),
-    hence the run_coroutine_threadsafe indirection."""
+    event loop. Callers (route handlers, lifespan startup) all run directly
+    on the event loop now that the whole stack is async, so sessions are
+    scheduled with plain asyncio.create_task — no cross-thread indirection
+    needed."""
 
-    def __init__(self, process_tick: Callable[[int], None]) -> None:
+    def __init__(self, process_tick: Callable[[int], Awaitable[None]]) -> None:
         self._process_tick = process_tick
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._futures: dict[int, Future] = {}
-
-    def attach_loop(self, loop: asyncio.AbstractEventLoop) -> None:
-        self._loop = loop
+        self._tasks: dict[int, asyncio.Task] = {}
 
     def start(self, session_id: int, timeframe: str) -> None:
-        if self._loop is None:
-            return
-        existing = self._futures.get(session_id)
+        existing = self._tasks.get(session_id)
         if existing is not None and not existing.done():
             return
         poll = min(
             max(_TIMEFRAME_SECONDS.get(timeframe, 60), _MIN_POLL_SECONDS),
             _MAX_POLL_SECONDS,
         )
-        self._futures[session_id] = asyncio.run_coroutine_threadsafe(
-            self._session_loop(session_id, poll), self._loop
+        self._tasks[session_id] = asyncio.create_task(
+            self._session_loop(session_id, poll)
         )
 
     def stop(self, session_id: int) -> None:
-        future = self._futures.pop(session_id, None)
-        if future is not None:
-            future.cancel()
+        task = self._tasks.pop(session_id, None)
+        if task is not None:
+            task.cancel()
 
     def stop_all(self) -> None:
-        for session_id in list(self._futures):
+        for session_id in list(self._tasks):
             self.stop(session_id)
 
     async def _session_loop(self, session_id: int, poll_seconds: int) -> None:
         try:
             while True:
                 try:
-                    await run_in_threadpool(self._process_tick, session_id)
+                    await self._process_tick(session_id)
                 except Exception:
                     # Transient failure (exchange/db): retry on next tick.
                     pass

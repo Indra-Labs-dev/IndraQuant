@@ -3,7 +3,8 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Numeric, String, Text, func, select
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.modules.backtesting.application.dto import (
     BacktestReport,
@@ -34,10 +35,10 @@ class BacktestRunModel(Base):
 
 
 class SqlAlchemyBacktestRunRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def save(self, report: BacktestReport) -> int:
+    async def save(self, report: BacktestReport) -> int:
         model = BacktestRunModel(
             instrument_id=report.instrument_id,
             timeframe=report.timeframe,
@@ -50,11 +51,11 @@ class SqlAlchemyBacktestRunRepository:
             report_json=report.model_dump_json(exclude={"equity_curve"}),
         )
         self._session.add(model)
-        self._session.flush()
+        await self._session.flush()
         return model.id
 
-    def list_runs(self, limit: int = 50) -> list[BacktestSummary]:
-        models = self._session.scalars(
+    async def list_runs(self, limit: int = 50) -> list[BacktestSummary]:
+        models = await self._session.scalars(
             select(BacktestRunModel)
             .order_by(BacktestRunModel.created_at.desc())
             .limit(limit)

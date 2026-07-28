@@ -2,7 +2,8 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Numeric, String, func, select
-from sqlalchemy.orm import Mapped, Session, mapped_column
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped, mapped_column
 
 from src.shared.infrastructure.database import Base
 
@@ -35,31 +36,31 @@ class AlertModel(Base):
 
 
 class SqlAlchemyAlertRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    def add(self, model: AlertModel) -> AlertModel:
+    async def add(self, model: AlertModel) -> AlertModel:
         self._session.add(model)
-        self._session.flush()
+        await self._session.flush()
         return model
 
-    def get(self, alert_id: int) -> AlertModel | None:
-        return self._session.get(AlertModel, alert_id)
+    async def get(self, alert_id: int) -> AlertModel | None:
+        return await self._session.get(AlertModel, alert_id)
 
-    def list_all(self) -> list[AlertModel]:
+    async def list_all(self) -> list[AlertModel]:
         return list(
-            self._session.scalars(
+            await self._session.scalars(
                 select(AlertModel).order_by(AlertModel.id.desc())
             )
         )
 
-    def list_active(self) -> list[AlertModel]:
+    async def list_active(self) -> list[AlertModel]:
         return list(
-            self._session.scalars(
+            await self._session.scalars(
                 select(AlertModel).where(AlertModel.is_active.is_(True))
             )
         )
 
-    def delete(self, model: AlertModel) -> None:
-        self._session.delete(model)
-        self._session.flush()
+    async def delete(self, model: AlertModel) -> None:
+        await self._session.delete(model)
+        await self._session.flush()

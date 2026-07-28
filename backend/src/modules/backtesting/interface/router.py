@@ -26,26 +26,26 @@ router = APIRouter(prefix="/backtests", tags=["backtesting"])
 
 
 @router.post("")
-def run_backtest(
+async def run_backtest(
     request: RunBacktestRequest,
     _: UserProfile = Depends(get_current_user),
     use_case: RunBacktestUseCase = Depends(get_run_backtest_use_case),
 ) -> BacktestReport:
-    return use_case.execute(request)
+    return await use_case.execute(request)
 
 
 @router.get("")
-def list_backtests(
+async def list_backtests(
     _: UserProfile = Depends(get_current_user),
     repository: BacktestRunRepository = Depends(get_backtest_repository),
 ) -> BacktestListResponse:
-    return BacktestListResponse(backtests=repository.list_runs())
+    return BacktestListResponse(backtests=await repository.list_runs())
 
 
 @router.post("/walk-forward")
-def walk_forward(
+async def walk_forward(
     request: WalkForwardRequest,
     _: UserProfile = Depends(get_current_user),
     use_case: WalkForwardUseCase = Depends(get_walk_forward_use_case),
 ) -> WalkForwardReport:
-    return use_case.execute(request)
+    return await use_case.execute(request)

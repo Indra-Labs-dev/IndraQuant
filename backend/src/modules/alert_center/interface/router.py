@@ -13,27 +13,27 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
 @router.post("")
-def create_alert(
+async def create_alert(
     request: CreateAlertRequest,
     _: UserProfile = Depends(get_current_user),
     use_case: ManageAlertsUseCase = Depends(get_manage_alerts_use_case),
 ) -> AlertDto:
-    return use_case.create(request)
+    return await use_case.create(request)
 
 
 @router.get("")
-def list_alerts(
+async def list_alerts(
     _: UserProfile = Depends(get_current_user),
     use_case: ManageAlertsUseCase = Depends(get_manage_alerts_use_case),
 ) -> AlertsResponse:
-    return use_case.list_alerts()
+    return await use_case.list_alerts()
 
 
 @router.delete("/{alert_id}")
-def delete_alert(
+async def delete_alert(
     alert_id: int,
     _: UserProfile = Depends(get_current_user),
     use_case: ManageAlertsUseCase = Depends(get_manage_alerts_use_case),
 ) -> dict:
-    use_case.delete(alert_id)
+    await use_case.delete(alert_id)
     return {"status": "ok"}

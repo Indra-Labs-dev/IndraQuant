@@ -28,17 +28,18 @@ class AnalyzeNewsIntelligenceUseCase:
         self._ollama = ollama
         self._cache = cache
 
-    def execute(self, limit: int = 30) -> NewsIntelligenceResponse:
+    async def execute(self, limit: int = 30) -> NewsIntelligenceResponse:
         cache_key = f"news_intelligence:{limit}"
         if self._cache is not None:
             try:
-                cached = self._cache.get(cache_key)
+                cached = await self._cache.get(cache_key)
                 if cached:
                     return NewsIntelligenceResponse(**json.loads(cached))
             except Exception:
                 pass
 
-        news = self._news.execute(limit).items
+        news_response = await self._news.execute(limit)
+        news = news_response.items
         if not news:
             raise AppError("no_news", "Aucune actualité récupérée.", 502)
 
@@ -107,7 +108,7 @@ class AnalyzeNewsIntelligenceUseCase:
 
         if self._cache is not None:
             try:
-                self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+                await self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
             except Exception:
                 pass
         return response

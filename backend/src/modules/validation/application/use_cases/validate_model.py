@@ -41,11 +41,11 @@ class ValidatePredictionModelUseCase:
     def __init__(self, ohlcv: OhlcvProvider) -> None:
         self._ohlcv = ohlcv
 
-    def execute(self, instrument_id: int, timeframe: str) -> ModelValidationResponse:
+    async def execute(self, instrument_id: int, timeframe: str) -> ModelValidationResponse:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * _TRAINING_CANDLES)
-        response = self._ohlcv.execute(instrument_id, timeframe, start, end, 5000)
+        response = await self._ohlcv.execute(instrument_id, timeframe, start, end, 5000)
 
         closes = [c.close for c in response.candles]
         volumes = [c.volume for c in response.candles]

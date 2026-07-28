@@ -30,20 +30,20 @@ class GetGlobalFeatureImportanceUseCase:
         self._predictions = predictions
         self._cache = cache
 
-    def execute(
+    async def execute(
         self, instrument_id: int, timeframe: str, limit: int = _DEFAULT_LIMIT
     ) -> GlobalImportanceResponse:
-        latest_id = self._predictions.get_latest_id(instrument_id, timeframe)
+        latest_id = await self._predictions.get_latest_id(instrument_id, timeframe)
         cache_key = f"feature-importance:{instrument_id}:{timeframe}:{limit}:{latest_id}"
         if self._cache is not None:
             try:
-                cached = self._cache.get(cache_key)
+                cached = await self._cache.get(cache_key)
                 if cached:
                     return GlobalImportanceResponse.model_validate_json(cached)
             except Exception:
                 pass
 
-        records = self._predictions.list_recent(instrument_id, timeframe, limit)
+        records = await self._predictions.list_recent(instrument_id, timeframe, limit)
         history = [
             contributions
             for record in records
@@ -78,7 +78,7 @@ class GetGlobalFeatureImportanceUseCase:
         )
         if self._cache is not None:
             try:
-                self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+                await self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
             except Exception:
                 pass
         return response
@@ -94,24 +94,24 @@ class GetFeatureEvolutionUseCase:
         self._predictions = predictions
         self._cache = cache
 
-    def execute(
+    async def execute(
         self,
         instrument_id: int,
         timeframe: str,
         feature: str,
         limit: int = _DEFAULT_LIMIT,
     ) -> FeatureEvolutionResponse:
-        latest_id = self._predictions.get_latest_id(instrument_id, timeframe)
+        latest_id = await self._predictions.get_latest_id(instrument_id, timeframe)
         cache_key = f"feature-evolution:{instrument_id}:{timeframe}:{feature}:{limit}:{latest_id}"
         if self._cache is not None:
             try:
-                cached = self._cache.get(cache_key)
+                cached = await self._cache.get(cache_key)
                 if cached:
                     return FeatureEvolutionResponse.model_validate_json(cached)
             except Exception:
                 pass
 
-        records = self._predictions.list_recent(instrument_id, timeframe, limit)
+        records = await self._predictions.list_recent(instrument_id, timeframe, limit)
         history = [
             (record.as_of, contributions)
             for record in records
@@ -140,7 +140,7 @@ class GetFeatureEvolutionUseCase:
         )
         if self._cache is not None:
             try:
-                self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
+                await self._cache.set(cache_key, response.model_dump_json(), ex=_CACHE_TTL_SECONDS)
             except Exception:
                 pass
         return response

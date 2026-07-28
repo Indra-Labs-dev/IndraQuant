@@ -48,8 +48,8 @@ class ChatUseCase:
         self._ohlcv = ohlcv
         self._ollama_chat = ollama_chat
 
-    def execute(self, request: ChatRequest) -> ChatResponse:
-        context = self._market_context()
+    async def execute(self, request: ChatRequest) -> ChatResponse:
+        context = await self._market_context()
         messages = (
             [{"role": "system", "content": _SYSTEM_PROMPT.format(context=context)}]
             + [m.model_dump() for m in request.history[-8:]]
@@ -65,7 +65,7 @@ class ChatUseCase:
             )
         return ChatResponse(
             reply=reply,
-            model="llama3.1:8b (Ollama, local)",
+            model="qwen3.5:9b (Ollama, local)",
             context_note=(
                 "L'assistant reçoit un instantané des instruments suivis "
                 "(dernier prix, RSI 14 en 1h). Il ne donne pas de conseil "
@@ -73,15 +73,17 @@ class ChatUseCase:
             ),
         )
 
-    def _market_context(self) -> str:
+    async def _market_context(self) -> str:
         lines = []
         end = datetime.now(timezone.utc)
         start = end - timedelta(hours=60)
-        for instrument in self._instruments.execute().instruments[:6]:
+        instruments_response = await self._instruments.execute()
+        for instrument in instruments_response.instruments[:6]:
             try:
-                candles = self._ohlcv.execute(
+                response = await self._ohlcv.execute(
                     instrument.id, "1h", start, end, 500
-                ).candles
+                )
+                candles = response.candles
             except Exception:
                 continue
             if not candles:

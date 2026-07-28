@@ -36,7 +36,7 @@ class GetCorrelationMatrixUseCase:
         self._ohlcv = ohlcv
         self._instruments = instruments
 
-    def execute(
+    async def execute(
         self, instrument_ids: list[int], timeframe: str, window: int = 20
     ) -> CorrelationMatrixResponse:
         unique_ids = list(dict.fromkeys(instrument_ids))
@@ -54,13 +54,13 @@ class GetCorrelationMatrixUseCase:
         closes_by_id: dict[int, dict[datetime, float]] = {}
         symbols: dict[int, str] = {}
         for instrument_id in unique_ids:
-            instrument = self._instruments.get(instrument_id)
+            instrument = await self._instruments.get(instrument_id)
             if instrument is None:
                 raise AppError(
                     "instrument_not_found", f"Instrument {instrument_id} introuvable.", 404
                 )
             symbols[instrument_id] = instrument.symbol
-            response = self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
+            response = await self._ohlcv.execute(instrument_id, timeframe, start, end, 2000)
             closes_by_id[instrument_id] = {c.open_time: c.close for c in response.candles}
 
         pairs = [

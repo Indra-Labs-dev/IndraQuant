@@ -12,9 +12,9 @@ router = APIRouter(prefix="/assistant", tags=["ai-assistant"])
 
 
 @router.post("/chat")
-def chat(
+async def chat(
     request: ChatRequest,
     _: UserProfile = Depends(get_current_user),
     use_case: ChatUseCase = Depends(get_chat_use_case),
 ) -> ChatResponse:
-    return use_case.execute(request)
+    return await use_case.execute(request)

@@ -3,10 +3,10 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from starlette.concurrency import run_in_threadpool
 
-from src.composition_root import get_db_session, get_ohlcv_use_case, token_provider
+from src.composition_root import get_ohlcv_use_case, token_provider
 from src.modules.market_data.domain.value_objects import SUPPORTED_TIMEFRAMES, Timeframe
+from src.shared.infrastructure.database import SessionLocal
 
 router = APIRouter(tags=["market-data"])
 
@@ -15,15 +15,13 @@ _MAX_POLL_SECONDS = 15
 _PUSH_WINDOW_CANDLES = 3
 
 
-def _fetch_latest(instrument_id: int, timeframe: str) -> list[dict]:
-    session_gen = get_db_session()
-    session = next(session_gen)
-    try:
+async def _fetch_latest(instrument_id: int, timeframe: str) -> list[dict]:
+    async with SessionLocal() as session:
         use_case = get_ohlcv_use_case(session)
         seconds = Timeframe(timeframe).seconds
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * (_PUSH_WINDOW_CANDLES + 1))
-        response = use_case.execute(instrument_id, timeframe, start, end, 50)
+        response = await use_case.execute(instrument_id, timeframe, start, end, 50)
         return [
             {
                 "open_time": c.open_time.isoformat().replace("+00:00", "Z"),
@@ -35,8 +33,6 @@ def _fetch_latest(instrument_id: int, timeframe: str) -> list[dict]:
             }
             for c in response.candles[-_PUSH_WINDOW_CANDLES:]
         ]
-    finally:
-        session_gen.close()
 
 
 @router.websocket("/ws/market-data")
@@ -78,9 +74,7 @@ async def market_data_stream(websocket: WebSocket) -> None:
             if instrument_id is None or timeframe is None:
                 continue
             try:
-                candles = await run_in_threadpool(
-                    _fetch_latest, instrument_id, timeframe
-                )
+                candles = await _fetch_latest(instrument_id, timeframe)
                 await websocket.send_json(
                     {
                         "type": "candles",

@@ -10,13 +10,13 @@ Plateforme personnelle d'aide à la décision pour les marchés financiers (cryp
 
 | Couche | Choix | Note |
 |---|---|---|
-| Backend | Python 3.12, FastAPI, SQLAlchemy, Alembic, Pydantic | Port **8100** (8000 occupé sur la machine) |
-| Base de données | MariaDB 10.4 (XAMPP) | Remplace MySQL 8 (ADR-010, provisoire) |
-| Cache | Microsoft Garnet (compatible Redis) | Remplace Redis/Memurai qui échouaient sous Windows (ADR-012) |
-| Frontend | Next.js 16 (Turbopack), TypeScript, Tailwind, Zustand, Framer Motion, lightweight-charts v5 | 100 % français (next-intl) |
+| Backend | Python 3.12, FastAPI, SQLAlchemy, Alembic, Pydantic | Port **8100**, conteneurisé (Docker Compose) |
+| Base de données | PostgreSQL (stack Homelab partagé, `indralabs-network`) | Remplace MariaDB/XAMPP (ADR-033) |
+| Cache | Redis (stack Homelab partagé, DB index 2) | Remplace Microsoft Garnet (ADR-034) |
+| Frontend | Next.js 16 (Turbopack), TypeScript, Tailwind, Zustand, Framer Motion, lightweight-charts v5 | 100 % français (next-intl), reste natif (`npm run dev`) |
 | Données de marché | `ccxt` (crypto, Binance) + `yfinance` (actions) | Architecture multi-actifs dès le départ (ADR-004) |
-| IA | XGBoost + régression logistique + SHAP, Ollama local (llama3.1:8b) | Deep Learning volontairement différé (ADR-017) |
-| Environnement | Windows + PowerShell, pas de Docker | — |
+| IA | XGBoost + régression logistique + SHAP, Ollama local (qwen3.5:9b) | Deep Learning volontairement différé (ADR-017) |
+| Environnement | Kali Linux natif, Docker Compose pour le backend | Rejoint `indralabs-network` (ADR-035) |
 
 ---
 

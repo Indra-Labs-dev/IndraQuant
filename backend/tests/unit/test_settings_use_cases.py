@@ -9,32 +9,32 @@ class FakeSettingsRepository:
     def __init__(self) -> None:
         self._data: dict[tuple[int, str], str] = {}
 
-    def get_all(self, user_id: int) -> list[Setting]:
+    async def get_all(self, user_id: int) -> list[Setting]:
         return [
             Setting(key=key, value=value)
             for (uid, key), value in self._data.items()
             if uid == user_id
         ]
 
-    def upsert(self, user_id: int, key: str, value: str) -> Setting:
+    async def upsert(self, user_id: int, key: str, value: str) -> Setting:
         self._data[(user_id, key)] = value
         return Setting(key=key, value=value)
 
 
-def test_get_settings_returns_key_value_map():
+async def test_get_settings_returns_key_value_map():
     repo = FakeSettingsRepository()
-    repo.upsert(1, "language", "fr")
-    repo.upsert(2, "language", "en")
+    await repo.upsert(1, "language", "fr")
+    await repo.upsert(2, "language", "en")
 
-    response = GetSettingsUseCase(repo).execute(1)
+    response = await GetSettingsUseCase(repo).execute(1)
 
     assert response.settings == {"language": "fr"}
 
 
-def test_update_setting_upserts_and_returns_full_map():
+async def test_update_setting_upserts_and_returns_full_map():
     repo = FakeSettingsRepository()
-    repo.upsert(1, "language", "fr")
+    await repo.upsert(1, "language", "fr")
 
-    response = UpdateSettingUseCase(repo).execute(1, "theme", "dark")
+    response = await UpdateSettingUseCase(repo).execute(1, "theme", "dark")
 
     assert response.settings == {"language": "fr", "theme": "dark"}

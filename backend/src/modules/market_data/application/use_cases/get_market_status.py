@@ -22,8 +22,8 @@ class GetMarketStatusUseCase:
     def __init__(self, instruments: InstrumentRepository) -> None:
         self._instruments = instruments
 
-    def execute(self, instrument_id: int) -> MarketStatusResponse:
-        instrument = self._instruments.get(instrument_id)
+    async def execute(self, instrument_id: int) -> MarketStatusResponse:
+        instrument = await self._instruments.get(instrument_id)
         if instrument is None:
             raise NotFoundError(
                 "instrument_not_found", f"Instrument {instrument_id} inconnu."

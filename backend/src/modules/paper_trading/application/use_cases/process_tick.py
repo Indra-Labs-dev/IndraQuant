@@ -38,8 +38,8 @@ class ProcessTickUseCase:
         self._ohlcv = ohlcv
         self._event_bus = event_bus
 
-    def execute(self, session_id: int) -> None:
-        session = self._repository.get(session_id)
+    async def execute(self, session_id: int) -> None:
+        session = await self._repository.get(session_id)
         if session is None or session.status != "running":
             return
 
@@ -47,7 +47,7 @@ class ProcessTickUseCase:
         seconds = _TIMEFRAME_SECONDS.get(session.timeframe, 60)
         end = datetime.now(timezone.utc)
         start = end - timedelta(seconds=seconds * (min_history(strategy) + 5))
-        response = self._ohlcv.execute(
+        response = await self._ohlcv.execute(
             session.instrument_id, session.timeframe, start, end, 5000
         )
         if not response.candles:
@@ -65,7 +65,7 @@ class ProcessTickUseCase:
             quantity = (session.cash - fee) / price
             session.position_qty = quantity
             session.cash = Decimal(0)
-            self._repository.add_trade(
+            await self._repository.add_trade(
                 PaperTradeModel(
                     session_id=session.id,
                     side="buy",
@@ -82,7 +82,7 @@ class ProcessTickUseCase:
             session.cash = gross - fee
             quantity = session.position_qty
             session.position_qty = Decimal(0)
-            self._repository.add_trade(
+            await self._repository.add_trade(
                 PaperTradeModel(
                     session_id=session.id,
                     side="sell",

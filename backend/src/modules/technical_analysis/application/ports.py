@@ -8,7 +8,7 @@ class OhlcvProvider(Protocol):
     """Fulfilled by market_data's GetOhlcvUseCase (wired in the composition
     root) — technical_analysis never touches market_data internals."""
 
-    def execute(
+    async def execute(
         self,
         instrument_id: int,
         timeframe_value: str,
