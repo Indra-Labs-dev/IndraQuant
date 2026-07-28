@@ -13,6 +13,8 @@ Prérequis : Python 3.12+, Node.js LTS, et le stack partagé [Homelab](~/Homelab
 ```bash
 # Base de données : créer la base dédiée sur le Postgres du Homelab (une seule fois)
 ~/Homelab/scripts/create-database.sh indraquant
+# En cas d'erreur \gexec (bug connu du script), solution de repli :
+# docker exec indralabs-postgres psql -U indra_admin -d postgres -c 'CREATE DATABASE indraquant OWNER indra_admin'
 
 # Backend — conteneurisé, rejoint indralabs-network (voir docker-compose.yml)
 cp backend/.env.example backend/.env   # puis renseigner DATABASE_URL / REDIS_URL
@@ -25,6 +27,10 @@ cd frontend
 npm install
 npm run dev
 ```
+
+Assistant IA et analyse de sentiment (Ollama local) : Ollama doit écouter sur
+`0.0.0.0` (pas seulement `127.0.0.1`) pour être joignable depuis le conteneur backend
+via `host.docker.internal` — voir `OLLAMA_HOST` dans la configuration du service Ollama.
 
 Le backend tourne en conteneur Docker Compose (`docker-compose.yml`, service `backend`),
 sur le réseau externe `indralabs-network` du Homelab — voir `RAPPORT_IMPLEMENTATION.md`

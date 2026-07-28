@@ -1,6 +1,6 @@
 # Rapport d'implémentation — IndraQuant
 
-*Généré le 2026-07-22. Reflète l'état du code à cette date — voir `docs/00-index.md` et `docs/07-decisions-architecture.md` pour la documentation vivante qui continuera d'évoluer.*
+*Généré le 2026-07-22, section infrastructure mise à jour le 2026-07-28 (migration Windows → Kali natif). Reflète l'état du code à ces dates — voir `docs/00-index.md` et `docs/07-decisions-architecture.md` pour la documentation vivante qui continuera d'évoluer.*
 
 Plateforme personnelle d'aide à la décision pour les marchés financiers (crypto + actions), en français, avec des sorties IA toujours **probabilistes et explicables** — jamais de prédiction binaire ou de boîte noire. Toutes les phases de la feuille de route (`docs/06-feuille-de-route.md`) sont implémentées, plus un cycle d'extensions post-lancement.
 
@@ -93,28 +93,38 @@ Chaque sortie IA du projet — direction, prix, sentiment, Smart Money Concepts 
 ## 5. Infrastructure & tâches de fond
 
 - **25 instruments actifs** : 13 cryptomonnaies (Binance, via `ccxt`) + 12 actions (Yahoo Finance).
-- **5 tâches de fond** (`asyncio`, démarrées/arrêtées dans le cycle de vie FastAPI) :
+- **Stack entièrement async** (SQLAlchemy `asyncpg` + `redis.asyncio`, ADR-036) : les 5 tâches de fond ci-dessous et toutes les routes FastAPI partagent la même boucle événementielle (`uvloop`), sans thread séparé ni connexion bloquante.
+- **5 tâches de fond** (`asyncio.create_task`, démarrées/arrêtées dans le cycle de vie FastAPI) :
   1. `AlertRunner` — vérifie les alertes toutes les 30 s.
   2. `PaperTradingRunner` — fait avancer les sessions de paper trading sur flux réel.
   3. `PredictionResolverRunner` — résout les prédictions dont la bougie cible est close.
   4. `TrainingRunner` — ré-exécute le Prediction Engine pour les sessions d'entraînement continu actives.
   5. `MarketDataRefreshRunner` — rafraîchit proactivement les données 1h/1d toutes les 5 min pour les 25 instruments (respecte les horaires NYSE pour les actions).
-- **5 migrations Alembic** (001 à 005) couvrant : schéma initial, backtesting/paper trading, alertes, suivi des prédictions, suivi de l'estimation de prix.
+- **1 migration Alembic** (`001_initial_schema`, PostgreSQL natif) — squash des 7 anciennes révisions MariaDB (ADR-033), aucune donnée de production à préserver (ADR-001/002).
 
 ---
 
 ## 6. Journal des décisions d'architecture (ADR)
 
-32 décisions documentées dans `docs/07-decisions-architecture.md`. Résumé chronologique :
+37 décisions documentées dans `docs/07-decisions-architecture.md`. Résumé chronologique :
 
 | Plage | Thème |
 |---|---|
 | ADR-001 à 009 | Fondations : utilisateur unique, déploiement local, données multi-actifs, français dès le départ, JWT, structure par module, `/api/v1` |
-| ADR-010 à 014 | Réalité d'environnement Phase 0-1 : MariaDB, Python 3.12, Garnet, bootstrap, ingestion lecture-au-travers |
+| ADR-010 à 014 | *(Historique, remplacées le 2026-07-28 — voir ADR-033/034/036)* Réalité d'environnement Windows Phase 0-1 : MariaDB/XAMPP, Garnet, bootstrap, ingestion lecture-au-travers |
 | ADR-015 à 019 | Phases 2-6 : timeframes secondes, WebSocket, Prediction Engine initial, sources Phase 5, assistant/alertes/plugins |
 | ADR-020 à 023 | Auto-apprentissage direction, animations, calendrier de marché NYSE, page Entraînement IA |
 | ADR-024 à 027 | Entraînement continu multi-actifs, estimation de prix, reproductibilité, parallélisation |
 | ADR-028 à 032 | **Sweep « implémente tout » (2026-07-22)** : Portfolio Analytics, auto-apprentissage du prix, rafraîchissement proactif, extension SMC (FVG/Order Block), extension Strategy Builder (MACD/Bollinger) |
+| ADR-033 à 037 | **Migration Windows → Kali natif (2026-07-28)** : PostgreSQL Homelab remplace MariaDB, Redis Homelab remplace Garnet, backend conteneurisé sur `indralabs-network`, stack async SQLAlchemy/Redis, nettoyage Windows/PowerShell — détail ci-dessous |
+
+### Détail des nouvelles décisions (2026-07-28)
+
+- **ADR-033 — PostgreSQL natif du Homelab remplace MariaDB/XAMPP.** Base dédiée `indraquant` sur le Postgres partagé (`~/Homelab`), driver `psycopg` (sync, migrations) + `asyncpg` (async, application). Les 7 migrations MariaDB ont été squashées en une seule migration Postgres-native (`001_initial_schema`) générée par autogénération contre les modèles SQLAlchemy existants plutôt que portées à la main — aucune donnée de production à préserver (ADR-001/002). Un upsert codé en dur avec la syntaxe MySQL (`ON DUPLICATE KEY UPDATE`, dans `market_data` et `settings`) a aussi été trouvé et corrigé vers `ON CONFLICT` natif Postgres à cette occasion — il n'était détecté par aucune migration ni aucun test (doublons de test en mémoire).
+- **ADR-034 — Redis réel du Homelab remplace Microsoft Garnet.** Instance partagée, index logique **2** dédié à IndraQuant (l'index 1 est réservé par le projet A.R.S.E.N.I.C — voir `~/Homelab/README.md`).
+- **ADR-035 — Backend conteneurisé sur `indralabs-network`.** `docker-compose.yml` à la racine du projet (patron repris d'A.R.S.E.N.I.C) : le backend rejoint le réseau Docker externe du Homelab, résout Postgres/Redis par nom de service, publie le port 8100 sur `127.0.0.1` uniquement. Le frontend reste natif (`npm run dev`). Ollama, non conteneurisé (accès GPU), est atteint via `host.docker.internal` — nécessite qu'Ollama écoute sur `0.0.0.0` et non uniquement `127.0.0.1` (configuration système, hors du dépôt).
+- **ADR-036 — Stack backend entièrement asynchrone.** SQLAlchemy passe de `create_engine`/`Session` à `create_async_engine`/`AsyncSession` (`asyncpg`), `redis.Redis` à `redis.asyncio.Redis`. Conversion réalisée en un seul changement atomique (composition_root, 8 repositories, ~24 cas d'usage, ~55 routes, 5 tâches de fond) et non module par module comme envisagé initialement : `GetOhlcvUseCase` (module `market_data`) est appelé directement par la quasi-totalité des autres modules, rendant toute conversion partielle instable. Les 5 tâches de fond utilisent désormais `asyncio.create_task` directement (suppression de `run_coroutine_threadsafe`/`attach_loop`, devenus inutiles puisque tous les appelants tournent déjà sur la boucle événementielle).
+- **ADR-037 — Port 8100 conservé, mais pour une raison différente.** Le port 8000 reste indisponible sous Kali — non plus à cause d'un service Windows, mais parce que l'agent Portainer Edge du Homelab (`PORTAINER_EDGE_PORT=8000`) l'occupe déjà.
 
 ---
 
@@ -127,4 +137,13 @@ Chaque sortie IA du projet — direction, prix, sentiment, Smart Money Concepts 
 
 ## 8. Vérification
 
-Chaque fonctionnalité listée ci-dessus a été vérifiée avec de vraies données (appels API réels via curl avec authentification, et interaction réelle dans le navigateur), pas seulement par des tests unitaires. Suite de tests backend : **96 tests unitaires**, tous passants.
+Chaque fonctionnalité listée ci-dessus a été vérifiée avec de vraies données (appels API réels via curl avec authentification, et interaction réelle dans le navigateur), pas seulement par des tests unitaires. Suite de tests backend : **266 tests unitaires**, tous passants.
+
+La migration Windows → Kali (§1, ADR-033 à 037) a été vérifiée de bout en bout contre l'infrastructure réelle : conteneur Docker démarré, migration Postgres appliquée, connexion Redis (index 2) confirmée, puis appels API réels (connexion, liste d'instruments, ingestion OHLCV crypto **et actions**, création/liste de backtests, création/arrêt de session de paper trading) via le stack async — health check `{"status":"ok","database":"ok","cache":"ok"}`.
+
+### Performances (Kali natif)
+
+- **uvloop** activé sur le déploiement Docker (`--loop uvloop`) — boucle asyncio plus rapide, sans changement de comportement.
+- **Un seul worker uvicorn**, délibérément : les 5 tâches de fond et le cache d'instruments en mémoire (`SqlAlchemyInstrumentRepository`) sont process-local — plusieurs workers dupliqueraient les tâches de fond et fragmenteraient ce cache.
+- **Cache Redis des indicateurs techniques** : évalué, **non ajouté** — `ComputeIndicatorsUseCase` n'est appelé par aucune tâche de fond (seulement à la demande depuis le tableau de bord), et le calcul reste bon marché (< 5000 bougies, opérations vectorielles simples). Le cache existant (lecture-au-travers OHLCV, feature store, prédictions) couvre déjà les chemins réellement coûteux.
+- **TimescaleDB** : évalué, **non activé** — `ohlcv_candles` totalise 11 538 lignes (2,4 Mo) au moment de l'évaluation ; projeté sur plusieurs années à 25 instruments, le volume resterait largement dans les capacités d'un Postgres nu avec l'index unique déjà en place. Voie d'activation documentée pour référence future si le volume réel le justifiait un jour : `CREATE EXTENSION timescaledb` sur le Postgres du Homelab, puis `create_hypertable('ohlcv_candles', 'open_time')` — sans complexifier le projet tant que le besoin n'est pas prouvé (ADR-001/002).
