@@ -6,7 +6,15 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# --timeout/--retries : le reseau vers PyPI depuis ce build Docker s'est montre
+# instable (ReadTimeoutError, hash mismatch sur connexion coupee en cours de
+# telechargement) - la valeur par defaut de pip (15s, 5 tentatives) n'est pas
+# assez tolerante ici. Les plus gros wheels (scikit-learn/pandas/numpy) sont
+# installes dans leur propre couche AVANT le reste : un echec reseau ne fait
+# alors retelecharger que cette couche au prochain essai, pas la totalite de
+# requirements.txt.
+RUN pip install --no-cache-dir --timeout 120 --retries 10 xgboost-cpu shap scikit-learn pandas numpy
+RUN pip install --no-cache-dir --timeout 120 --retries 10 -r requirements.txt
 
 COPY . .
 

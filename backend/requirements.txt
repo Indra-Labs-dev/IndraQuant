@@ -12,7 +12,7 @@ ccxt
 yfinance
 PyJWT
 bcrypt
-xgboost
+xgboost-cpu
 shap
 scikit-learn
 pandas

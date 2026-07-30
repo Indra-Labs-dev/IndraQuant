@@ -15,7 +15,7 @@ Plateforme personnelle d'aide à la décision pour les marchés financiers (cryp
 | Cache | Redis (stack Homelab partagé, DB index 2) | Remplace Microsoft Garnet (ADR-034) |
 | Frontend | Next.js 16 (Turbopack), TypeScript, Tailwind, Zustand, Framer Motion, lightweight-charts v5 | 100 % français (next-intl), reste natif (`npm run dev`) |
 | Données de marché | `ccxt` (crypto, Binance) + `yfinance` (actions) | Architecture multi-actifs dès le départ (ADR-004) |
-| IA | XGBoost + régression logistique + SHAP, Ollama local (qwen3.5:9b) | Deep Learning volontairement différé (ADR-017) |
+| IA | XGBoost + régression logistique + SHAP, Ollama local (qwen2.5-coder:3b) | Deep Learning volontairement différé (ADR-017) |
 | Environnement | Kali Linux natif, Docker Compose pour le backend | Rejoint `indralabs-network` (ADR-035) |
 
 ---

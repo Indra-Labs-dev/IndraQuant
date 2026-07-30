@@ -11,7 +11,7 @@ import httpx
 _OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 _OLLAMA_URL = f"{_OLLAMA_BASE_URL}/api/generate"
 _OLLAMA_CHAT_URL = f"{_OLLAMA_BASE_URL}/api/chat"
-_MODEL = "qwen3.5:9b"
+_MODEL = "qwen2.5-coder:3b"
 _TIMEOUT_SECONDS = 60
 _CHAT_TIMEOUT_SECONDS = 120
 # One classification call per headline is unavoidable (Ollama's JSON mode only

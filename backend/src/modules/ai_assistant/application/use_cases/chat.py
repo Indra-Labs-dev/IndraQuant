@@ -65,7 +65,7 @@ class ChatUseCase:
             )
         return ChatResponse(
             reply=reply,
-            model="qwen3.5:9b (Ollama, local)",
+            model="qwen2.5-coder:3b (Ollama, local)",
             context_note=(
                 "L'assistant reçoit un instantané des instruments suivis "
                 "(dernier prix, RSI 14 en 1h). Il ne donne pas de conseil "

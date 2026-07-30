@@ -82,7 +82,7 @@ class AnalyzeNewsSentimentUseCase:
         response = SentimentResponse(
             items=items,
             average_score=round(average, 3),
-            model="qwen3.5:9b (Ollama, local)",
+            model="qwen2.5-coder:3b (Ollama, local)",
             explanation=(
                 f"Sentiment agrégé {tone} (score moyen {average:+.2f} sur "
                 f"{len(items)} titres). Chaque titre est classé par un modèle "
