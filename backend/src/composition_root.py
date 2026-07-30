@@ -11,9 +11,14 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.ai_assistant.application.tool_calling_loop import ToolCallingLoop
+from src.modules.ai_assistant.application.tools.registry import build_tool_registry
 from src.modules.ai_assistant.application.use_cases.chat import ChatUseCase
 from src.modules.ai_assistant.application.use_cases.get_chat_history import (
     GetChatHistoryUseCase,
+)
+from src.modules.ai_assistant.application.use_cases.list_conversations import (
+    ListConversationsUseCase,
 )
 from src.modules.ai_assistant.application.use_cases.manage_memory import (
     ClearMemoryUseCase,
@@ -21,6 +26,7 @@ from src.modules.ai_assistant.application.use_cases.manage_memory import (
 )
 from src.modules.ai_assistant.infrastructure.sqlalchemy_repository import (
     SqlAlchemyChatRepository,
+    SqlAlchemyConversationRepository,
     SqlAlchemyMemoryRepository,
 )
 from src.modules.alert_center.application.use_cases.manage_alerts import (
@@ -648,22 +654,67 @@ def get_global_confidence_score_use_case(
     )
 
 
+def _build_tool_use_cases(session: AsyncSession) -> dict[str, object]:
+    """One instance per tool dependency, assembled from providers that
+    already exist in this file — this is the seam that lets the AI
+    Assistant's ~30 tools (`ai_assistant/application/tools/`) reach every
+    other module without that package importing any of them directly."""
+    return {
+        "instruments": get_list_instruments_use_case(session),
+        "market_status": get_market_status_use_case(session),
+        "ohlcv": get_ohlcv_use_case(session),
+        "compute_indicators": get_compute_indicators_use_case(session),
+        "volume_profile": get_volume_profile_use_case(session),
+        "detect_patterns": get_detect_patterns_use_case(session),
+        "detect_smc": get_detect_smc_use_case(session),
+        "predict_direction": get_predict_direction_use_case(session),
+        "prediction_dashboard": get_prediction_dashboard_use_case(session),
+        "market_regime": get_market_regime_use_case(session),
+        "correlation_matrix": get_correlation_matrix_use_case(session),
+        "meta_decision": get_meta_decision_use_case(session),
+        "global_confidence": get_global_confidence_score_use_case(session),
+        "risk_profile": get_risk_profile_use_case(session),
+        "risk_budget": get_risk_budget_use_case(session),
+        "news": get_news_use_case(),
+        "sentiment": get_analyze_sentiment_use_case(),
+        "news_intelligence": get_news_intelligence_use_case(),
+        "news_correlation": get_news_price_correlation_use_case(session),
+        "feature_importance": get_global_feature_importance_use_case(session),
+        "portfolio_summary": get_portfolio_summary_use_case(session),
+        "manage_sessions": get_manage_sessions_use_case(session),
+        "manage_alerts": get_manage_alerts_use_case(session),
+        "settings": get_settings_use_case(session),
+        "update_setting": get_update_setting_use_case(session),
+        "manage_training": get_manage_training_use_case(session),
+        "optimize_model": get_optimize_model_use_case(session),
+    }
+
+
 def get_chat_use_case(session: AsyncSession = Depends(get_db_session)) -> ChatUseCase:
+    tool_registry = build_tool_registry(_build_tool_use_cases(session))
+    tool_calling_loop = ToolCallingLoop(_ollama_client.chat_with_tools, tool_registry)
     return ChatUseCase(
         get_list_instruments_use_case(session),
         get_ohlcv_use_case(session),
-        _ollama_client.chat,
+        tool_calling_loop,
         SqlAlchemyChatRepository(session),
         SqlAlchemyMemoryRepository(session),
         _ollama_client.extract_memory_facts,
         SqlAlchemySettingsRepository(session),
+        SqlAlchemyConversationRepository(session),
     )
 
 
-def get_chat_history_use_case(
+def get_conversation_history_use_case(
     session: AsyncSession = Depends(get_db_session),
 ) -> GetChatHistoryUseCase:
     return GetChatHistoryUseCase(SqlAlchemyChatRepository(session))
+
+
+def get_list_conversations_use_case(
+    session: AsyncSession = Depends(get_db_session),
+) -> ListConversationsUseCase:
+    return ListConversationsUseCase(SqlAlchemyConversationRepository(session))
 
 
 def get_memory_use_case(
@@ -795,6 +846,7 @@ _SEED_EXCHANGES = (
             ("V", "V", "USD", "equity"),
             ("AMD", "AMD", "USD", "equity"),
             ("DIS", "DIS", "USD", "equity"),
+            ("MC.PA", "MC", "EUR", "equity"),
         ),
     ),
 )

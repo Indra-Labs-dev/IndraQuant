@@ -12,3 +12,10 @@ class ChatMessageRecord:
 @dataclass(frozen=True)
 class MemoryFact:
     content: str
+
+
+@dataclass(frozen=True)
+class Conversation:
+    id: int
+    title: str | None
+    updated_at: datetime

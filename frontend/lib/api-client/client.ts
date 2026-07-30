@@ -429,15 +429,24 @@ export function getCalendarEvents(): Promise<import("./types").CalendarResponse>
 
 export function chatWithAssistant(
   message: string,
+  conversationId: number | null,
 ): Promise<import("./types").ChatResponse> {
   return request("/assistant/chat", {
     method: "POST",
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, conversation_id: conversationId }),
   });
 }
 
-export function getChatHistory(): Promise<import("./types").ChatHistoryResponse> {
-  return request("/assistant/history");
+export function listConversations(): Promise<
+  import("./types").ConversationsResponse
+> {
+  return request("/assistant/conversations");
+}
+
+export function getConversationHistory(
+  conversationId: number,
+): Promise<import("./types").ChatHistoryResponse> {
+  return request(`/assistant/conversations/${conversationId}/history`);
 }
 
 export function getAssistantMemory(): Promise<

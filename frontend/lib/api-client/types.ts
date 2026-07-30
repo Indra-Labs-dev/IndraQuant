@@ -649,10 +649,22 @@ export interface ChatResponse {
   reply: string;
   model: string;
   context_note: string;
+  tools_invoked: string[];
+  conversation_id: number;
 }
 
 export interface ChatHistoryResponse {
   messages: ChatMessage[];
+}
+
+export interface ConversationSummary {
+  id: number;
+  title: string | null;
+  updated_at: string;
+}
+
+export interface ConversationsResponse {
+  conversations: ConversationSummary[];
 }
 
 export interface AssistantMemoryResponse {

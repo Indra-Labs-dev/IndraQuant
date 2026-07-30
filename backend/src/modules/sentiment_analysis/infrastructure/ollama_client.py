@@ -1,6 +1,8 @@
 import json
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 
 import httpx
 
@@ -24,6 +26,37 @@ _CHAT_TIMEOUT_SECONDS = 120
 _MAX_CONCURRENT_CLASSIFICATIONS = 4
 _MEMORY_TIMEOUT_SECONDS = 60
 _MAX_MEMORY_FACTS = 15
+_TOOLS_TIMEOUT_SECONDS = 120
+_FENCED_JSON_RE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL)
+
+
+@dataclass(frozen=True)
+class ToolCallResult:
+    content: str
+    tool_call: dict | None  # {"name": str, "arguments": dict} or None
+
+
+def _parse_tool_call(content: str) -> dict | None:
+    """qwen2.5-coder:3b never populates Ollama's native `message.tool_calls`
+    field (verified empirically) — it expresses its intended call as JSON in
+    `content` instead, sometimes wrapped in a ```json fence. Returns None for
+    anything that isn't cleanly `{"name": str, "arguments": dict}` — that
+    failure path IS "this is a normal text reply," not an error."""
+    text = content.strip()
+    fenced = _FENCED_JSON_RE.match(text)
+    if fenced:
+        text = fenced.group(1).strip()
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    name = parsed.get("name")
+    arguments = parsed.get("arguments", {})
+    if not isinstance(name, str) or not name or not isinstance(arguments, dict):
+        return None
+    return {"name": name, "arguments": arguments}
 
 
 class OllamaClient:
@@ -51,6 +84,38 @@ class OllamaClient:
         )
         response.raise_for_status()
         return response.json().get("message", {}).get("content", "")
+
+    def chat_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        temperature: float = 0.3,
+        num_predict: int | None = None,
+    ) -> ToolCallResult:
+        """Tool-calling variant used by the AI Assistant's `ToolCallingLoop`.
+        Deliberately does not judge whether a parsed tool name is one the
+        caller actually knows about (halluciné vs. réel) — that stays the
+        loop's responsibility, so this client remains agnostic of any
+        specific tool set (same file also serves sentiment_analysis)."""
+        options: dict = {"temperature": temperature}
+        if num_predict is not None:
+            options["num_predict"] = num_predict
+        response = httpx.post(
+            _OLLAMA_CHAT_URL,
+            json={
+                "model": _MODEL,
+                "messages": messages,
+                "tools": tools,
+                "stream": False,
+                "options": options,
+            },
+            timeout=_TOOLS_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        message = response.json().get("message", {})
+        content = message.get("content", "")
+        tool_call = _parse_tool_call(content) if content else None
+        return ToolCallResult(content=content, tool_call=tool_call)
 
     def classify_headlines(self, headlines: list[str]) -> list[dict]:
         """One {"sentiment", "score", "rationale"} per headline. The JSON

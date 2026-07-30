@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends
 
 from src.composition_root import (
-    get_chat_history_use_case,
     get_chat_use_case,
     get_clear_memory_use_case,
+    get_conversation_history_use_case,
     get_current_user,
+    get_list_conversations_use_case,
     get_memory_use_case,
 )
 from src.modules.ai_assistant.application.use_cases.chat import (
@@ -15,6 +16,10 @@ from src.modules.ai_assistant.application.use_cases.chat import (
 from src.modules.ai_assistant.application.use_cases.get_chat_history import (
     ChatHistoryResponse,
     GetChatHistoryUseCase,
+)
+from src.modules.ai_assistant.application.use_cases.list_conversations import (
+    ConversationsResponse,
+    ListConversationsUseCase,
 )
 from src.modules.ai_assistant.application.use_cases.manage_memory import (
     ClearMemoryUseCase,
@@ -35,12 +40,21 @@ async def chat(
     return await use_case.execute(user.id, request)
 
 
-@router.get("/history")
-async def history(
+@router.get("/conversations")
+async def list_conversations(
     user: UserProfile = Depends(get_current_user),
-    use_case: GetChatHistoryUseCase = Depends(get_chat_history_use_case),
-) -> ChatHistoryResponse:
+    use_case: ListConversationsUseCase = Depends(get_list_conversations_use_case),
+) -> ConversationsResponse:
     return await use_case.execute(user.id)
+
+
+@router.get("/conversations/{conversation_id}/history")
+async def conversation_history(
+    conversation_id: int,
+    user: UserProfile = Depends(get_current_user),
+    use_case: GetChatHistoryUseCase = Depends(get_conversation_history_use_case),
+) -> ChatHistoryResponse:
+    return await use_case.execute(user.id, conversation_id)
 
 
 @router.get("/memory")

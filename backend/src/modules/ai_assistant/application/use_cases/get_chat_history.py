@@ -14,8 +14,10 @@ class GetChatHistoryUseCase:
     def __init__(self, chat_repository: ChatRepository) -> None:
         self._chat_repository = chat_repository
 
-    async def execute(self, user_id: int) -> ChatHistoryResponse:
-        history = await self._chat_repository.list_recent(user_id, _HISTORY_LIMIT)
+    async def execute(self, user_id: int, conversation_id: int) -> ChatHistoryResponse:
+        history = await self._chat_repository.list_recent(
+            user_id, conversation_id, _HISTORY_LIMIT
+        )
         return ChatHistoryResponse(
             messages=[ChatMessage(role=h.role, content=h.content) for h in history]
         )

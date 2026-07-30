@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState("dark");
   const [maxTokens, setMaxTokens] = useState(512);
   const [temperature, setTemperature] = useState(0.3);
+  const [toolsEnabled, setToolsEnabled] = useState(true);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
@@ -35,6 +36,7 @@ export default function SettingsPage() {
         if (settings.theme) setTheme(settings.theme);
         if (settings.ai_max_tokens) setMaxTokens(Number(settings.ai_max_tokens));
         if (settings.ai_temperature) setTemperature(Number(settings.ai_temperature));
+        if (settings.ai_tools_enabled) setToolsEnabled(settings.ai_tools_enabled !== "false");
       })
       .catch(() => setLoadError(true));
   }, [token]);
@@ -46,6 +48,7 @@ export default function SettingsPage() {
       await updateSetting("theme", theme);
       await updateSetting("ai_max_tokens", String(maxTokens));
       await updateSetting("ai_temperature", String(temperature));
+      await updateSetting("ai_tools_enabled", String(toolsEnabled));
       setStatus("saved");
     } catch {
       setStatus("error");
@@ -125,6 +128,23 @@ export default function SettingsPage() {
             />
             <span className="block text-xs text-[var(--muted)]">
               {t("ai.temperatureHelp")}
+            </span>
+          </label>
+
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={toolsEnabled}
+              onChange={(e) => setToolsEnabled(e.target.checked)}
+              className="mt-0.5 accent-white"
+            />
+            <span className="space-y-0.5">
+              <span className="block text-sm text-[var(--muted)]">
+                {t("ai.toolsEnabled")}
+              </span>
+              <span className="block text-xs text-[var(--muted)]">
+                {t("ai.toolsEnabledHelp")}
+              </span>
             </span>
           </label>
         </div>

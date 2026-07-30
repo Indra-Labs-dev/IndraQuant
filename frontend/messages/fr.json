@@ -30,6 +30,13 @@
       "title": "Mémoire",
       "empty": "Aucun fait retenu pour l'instant.",
       "clear": "Effacer"
+    },
+    "toolsInvoked": "Outils utilisés : {tools}",
+    "newConversation": "Nouvelle conversation",
+    "conversations": {
+      "title": "Conversations",
+      "empty": "Aucune conversation pour l'instant.",
+      "untitled": "Nouvelle conversation"
     }
   },
   "training": {
@@ -422,7 +429,9 @@
       "maxTokens": "Limite de tokens (longueur de réponse)",
       "maxTokensHelp": "Nombre maximum de tokens générés par réponse (64 à 32 768, limite du modèle qwen2.5-coder).",
       "temperature": "Température (créativité)",
-      "temperatureHelp": "0 = réponses factuelles et déterministes, 1 = plus créatives."
+      "temperatureHelp": "0 = réponses factuelles et déterministes, 1 = plus créatives.",
+      "toolsEnabled": "Autoriser l'assistant à utiliser des outils",
+      "toolsEnabledHelp": "Quand activé, l'assistant peut consulter des données réelles (prédictions, news, alertes...) et effectuer certaines actions (créer une alerte, lancer un paper trading...) directement depuis la conversation."
     }
   }
 }
