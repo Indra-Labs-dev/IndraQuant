@@ -25,7 +25,7 @@ _TIMEFRAME_SECONDS = {
     "1s": 1, "5s": 5, "30s": 30, "1m": 60, "5m": 300,
     "15m": 900, "1h": 3_600, "4h": 14_400, "1d": 86_400,
 }
-_TRAINING_CANDLES = 1500
+_TRAINING_CANDLES = 5000
 _MIN_ROWS = 200
 _MIN_RESOLVED_PER_WINDOW = 10
 

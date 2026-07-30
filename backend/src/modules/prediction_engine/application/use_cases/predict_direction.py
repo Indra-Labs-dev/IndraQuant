@@ -35,7 +35,12 @@ _TIMEFRAME_SECONDS = {
     "1s": 1, "5s": 5, "30s": 30, "1m": 60, "5m": 300,
     "15m": 900, "1h": 3_600, "4h": 14_400, "1d": 86_400,
 }
-_TRAINING_CANDLES = 1500
+# Raised from 1500 to 5000 (crypto: ~7 months of 4h, ~208 days of 1h,
+# ~52 days of 15m) for more stable CV fold sizes and broader regime
+# coverage. Equities (Yahoo Finance) can't supply this much intraday
+# history anyway — the read-through backfill just returns whatever the
+# source has, so this is harmless there, not a targeted change for them.
+_TRAINING_CANDLES = 5000
 _MIN_ROWS = 200
 # Reference symbol for the correlation_btc_20 feature (only meaningful for
 # other crypto pairs — equities have no comparable single reference among
