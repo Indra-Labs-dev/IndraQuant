@@ -42,7 +42,10 @@ from src.modules.paper_trading.infrastructure.sqlalchemy_repository import (  # 
     PaperSessionModel,
     PaperTradeModel,
 )
-from src.modules.prediction_engine.infrastructure.sqlalchemy_repository import PredictionModel  # noqa: F401,E402
+from src.modules.prediction_engine.infrastructure.sqlalchemy_repository import (  # noqa: F401,E402
+    PredictionModel,
+    TrainingSessionModel,
+)
 from src.modules.settings.infrastructure.sqlalchemy_repository import SettingModel  # noqa: F401,E402
 from src.shared.infrastructure.database import Base  # noqa: E402
 

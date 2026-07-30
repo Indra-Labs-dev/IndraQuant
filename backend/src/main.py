@@ -13,6 +13,7 @@ from src.composition_root import (
     paper_trading_runner,
     prediction_resolver_runner,
     resume_running_paper_sessions,
+    resume_training_sessions,
     training_runner,
 )
 from src.modules.ai_assistant.interface.router import router as ai_assistant_router
@@ -107,6 +108,7 @@ async def health() -> dict:
 async def lifespan(app: FastAPI):
     await bootstrap()
     await resume_running_paper_sessions()
+    await resume_training_sessions()
     alert_runner.start()
     prediction_resolver_runner.start()
     market_data_refresh_runner.start()

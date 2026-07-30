@@ -205,6 +205,7 @@ from src.modules.prediction_engine.infrastructure.runner import (
 )
 from src.modules.prediction_engine.infrastructure.sqlalchemy_repository import (
     SqlAlchemyPredictionRepository,
+    SqlAlchemyTrainingSessionRepository,
 )
 from src.modules.smart_money.application.use_cases.detect_smc import DetectSmcUseCase
 from src.modules.settings.application.use_cases.get_settings import GetSettingsUseCase
@@ -494,7 +495,11 @@ training_runner = TrainingRunner(_run_prediction_once)
 def get_manage_training_use_case(
     session: AsyncSession = Depends(get_db_session),
 ) -> ManageTrainingUseCase:
-    return ManageTrainingUseCase(training_runner, SqlAlchemyInstrumentRepository(session))
+    return ManageTrainingUseCase(
+        training_runner,
+        SqlAlchemyInstrumentRepository(session),
+        SqlAlchemyTrainingSessionRepository(session),
+    )
 
 
 def get_detect_smc_use_case(
@@ -807,6 +812,13 @@ async def resume_running_paper_sessions() -> None:
         for model in await repository.list_sessions():
             if model.status == "running":
                 paper_trading_runner.start(model.id, model.timeframe)
+
+
+async def resume_training_sessions() -> None:
+    async with SessionLocal() as session:
+        repository = SqlAlchemyTrainingSessionRepository(session)
+        for instrument_id, timeframe in await repository.list_active():
+            training_runner.start(instrument_id, timeframe)
 
 
 _SEED_EXCHANGES = (

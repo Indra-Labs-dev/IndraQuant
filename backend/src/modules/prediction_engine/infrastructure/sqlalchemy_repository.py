@@ -14,6 +14,7 @@ from sqlalchemy import (
     func,
     select,
 )
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -213,3 +214,43 @@ class SqlAlchemyPredictionRepository:
         if instrument_id is not None:
             query = query.where(PredictionModel.instrument_id == instrument_id)
         return list(await self._session.scalars(query))
+
+
+class TrainingSessionModel(Base):
+    __tablename__ = "training_sessions"
+    __table_args__ = (UniqueConstraint("instrument_id", "timeframe"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    instrument_id: Mapped[int] = mapped_column(
+        ForeignKey("instruments.id"), nullable=False
+    )
+    timeframe: Mapped[str] = mapped_column(String(10), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class SqlAlchemyTrainingSessionRepository:
+    """Persisted mirror of `TrainingRunner`'s in-memory active set (ADR-024)
+    so continuous training sessions can resume automatically after a
+    backend restart instead of silently stopping forever."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def set_active(self, instrument_id: int, timeframe: str, is_active: bool) -> None:
+        statement = pg_insert(TrainingSessionModel).values(
+            instrument_id=instrument_id, timeframe=timeframe, is_active=is_active
+        )
+        statement = statement.on_conflict_do_update(
+            index_elements=["instrument_id", "timeframe"],
+            set_={"is_active": statement.excluded.is_active},
+        )
+        await self._session.execute(statement)
+        await self._session.flush()
+
+    async def list_active(self) -> list[tuple[int, str]]:
+        rows = await self._session.execute(
+            select(TrainingSessionModel.instrument_id, TrainingSessionModel.timeframe).where(
+                TrainingSessionModel.is_active.is_(True)
+            )
+        )
+        return [(instrument_id, timeframe) for instrument_id, timeframe in rows]
