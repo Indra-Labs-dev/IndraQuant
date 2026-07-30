@@ -20,18 +20,29 @@ class TrainedPrediction:
     shap_contributions: list[float]
 
 
+_DEFAULT_HYPERPARAMETERS = {"n_estimators": 200, "max_depth": 3, "learning_rate": 0.05}
+
+
 class DirectionModel:
     def train_predict(
         self,
         rows: list[list[float]],
         labels: list[int],
         latest_row: list[float],
+        hyperparameters: dict[str, float] | None = None,
     ) -> TrainedPrediction:
+        """`hyperparameters` optionally overrides `n_estimators`/`max_depth`/
+        `learning_rate` — normally the result of a past
+        `OptimizeModelHyperparametersUseCase` run for this exact
+        instrument/timeframe (see `PredictDirectionUseCase`), falling back to
+        the historical defaults below when none has been computed yet."""
         from sklearn.linear_model import LogisticRegression
         from sklearn.pipeline import make_pipeline
         from sklearn.preprocessing import StandardScaler
         from xgboost import XGBClassifier
         import shap
+
+        params = {**_DEFAULT_HYPERPARAMETERS, **(hyperparameters or {})}
 
         X = np.asarray(rows, dtype=np.float64)
         y = np.asarray(labels, dtype=np.int32)
@@ -42,9 +53,9 @@ class DirectionModel:
         y_train, y_test = y[:split], y[split:]
 
         xgb = XGBClassifier(
-            n_estimators=200,
-            max_depth=3,
-            learning_rate=0.05,
+            n_estimators=int(params["n_estimators"]),
+            max_depth=int(params["max_depth"]),
+            learning_rate=float(params["learning_rate"]),
             subsample=0.9,
             colsample_bytree=0.9,
             eval_metric="logloss",

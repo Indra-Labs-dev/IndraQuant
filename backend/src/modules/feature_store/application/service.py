@@ -80,17 +80,8 @@ class FeatureStoreService:
         vol_mean = fe.rolling_mean(volumes, _VOL_WINDOW)
         vol_std = fe.rolling_std(volumes, _VOL_WINDOW)
 
-        valid_vols = [v for v in vols[-_VOL_HISTORY:] if v is not None]
-        current_vol = vols[-1]
-        volatility_z_score = None
-        if current_vol is not None and len(valid_vols) >= 10:
-            mean_v = sum(valid_vols) / len(valid_vols)
-            std_v = (sum((v - mean_v) ** 2 for v in valid_vols) / len(valid_vols)) ** 0.5
-            volatility_z_score = (current_vol - mean_v) / std_v if std_v > 0 else 0.0
-
-        volume_z_score = None
-        if vol_mean[-1] is not None and vol_std[-1] and vol_std[-1] > 0:
-            volume_z_score = (volumes[-1] - vol_mean[-1]) / vol_std[-1]
+        volatility_z_score = fe.windowed_zscore(vols[-1], vols[-_VOL_HISTORY:])
+        volume_z_score = fe.zscore(volumes[-1], vol_mean[-1], vol_std[-1])
 
         return FeatureVector(
             instrument_id=instrument_id,

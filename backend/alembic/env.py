@@ -24,6 +24,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import all module models so autogenerate sees the full schema.
+from src.modules.ai_assistant.infrastructure.sqlalchemy_repository import (  # noqa: F401,E402
+    ChatMessageModel,
+    MemoryFactModel,
+)
 from src.modules.alert_center.infrastructure.sqlalchemy_repository import AlertModel  # noqa: F401,E402
 from src.modules.auth.infrastructure.sqlalchemy_repository import UserModel  # noqa: F401,E402
 from src.modules.backtesting.infrastructure.sqlalchemy_repository import BacktestRunModel  # noqa: F401,E402

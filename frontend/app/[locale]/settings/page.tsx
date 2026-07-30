@@ -16,6 +16,8 @@ export default function SettingsPage() {
 
   const [language, setLanguage] = useState("fr");
   const [theme, setTheme] = useState("dark");
+  const [maxTokens, setMaxTokens] = useState(512);
+  const [temperature, setTemperature] = useState(0.3);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
@@ -31,6 +33,8 @@ export default function SettingsPage() {
       .then(({ settings }) => {
         if (settings.language) setLanguage(settings.language);
         if (settings.theme) setTheme(settings.theme);
+        if (settings.ai_max_tokens) setMaxTokens(Number(settings.ai_max_tokens));
+        if (settings.ai_temperature) setTemperature(Number(settings.ai_temperature));
       })
       .catch(() => setLoadError(true));
   }, [token]);
@@ -40,6 +44,8 @@ export default function SettingsPage() {
     try {
       await updateSetting("language", language);
       await updateSetting("theme", theme);
+      await updateSetting("ai_max_tokens", String(maxTokens));
+      await updateSetting("ai_temperature", String(temperature));
       setStatus("saved");
     } catch {
       setStatus("error");
@@ -84,6 +90,44 @@ export default function SettingsPage() {
             <option value="light">{t("themes.light")}</option>
           </select>
         </label>
+
+        <div className="space-y-4 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <h2 className="text-sm font-medium">{t("ai.title")}</h2>
+
+          <label className="block space-y-1.5">
+            <span className="text-sm text-[var(--muted)]">{t("ai.maxTokens")}</span>
+            <input
+              type="number"
+              min={64}
+              max={32768}
+              step={512}
+              value={maxTokens}
+              onChange={(e) => setMaxTokens(Number(e.target.value))}
+              className={selectClass}
+            />
+            <span className="block text-xs text-[var(--muted)]">
+              {t("ai.maxTokensHelp")}
+            </span>
+          </label>
+
+          <label className="block space-y-1.5">
+            <span className="text-sm text-[var(--muted)]">
+              {t("ai.temperature")} ({temperature.toFixed(1)})
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.1}
+              value={temperature}
+              onChange={(e) => setTemperature(Number(e.target.value))}
+              className="w-full accent-white"
+            />
+            <span className="block text-xs text-[var(--muted)]">
+              {t("ai.temperatureHelp")}
+            </span>
+          </label>
+        </div>
 
         <div className="flex items-center gap-3">
           <button

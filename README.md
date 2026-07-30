@@ -22,7 +22,7 @@ cp backend/.env.example backend/.env   # puis renseigner DATABASE_URL / REDIS_UR
 docker compose up -d --build
 curl http://127.0.0.1:8100/api/v1/health
 
-# Frontend — natif, http://localhost:3000
+# Frontend — natif, http://localhost:3001
 cd frontend
 npm install
 npm run dev

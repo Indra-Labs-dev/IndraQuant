@@ -25,7 +25,12 @@
     "sending": "Réflexion en cours…",
     "error": "L'assistant est indisponible — vérifiez qu'Ollama est démarré.",
     "empty": "Posez votre première question à l'assistant.",
-    "disclaimer": "L'assistant s'appuie sur un instantané de vos instruments (dernier prix, RSI). Il ne donne jamais de conseil d'investissement."
+    "disclaimer": "L'assistant s'appuie sur un instantané de vos instruments (dernier prix, RSI). Il ne donne jamais de conseil d'investissement.",
+    "memory": {
+      "title": "Mémoire",
+      "empty": "Aucun fait retenu pour l'instant.",
+      "clear": "Effacer"
+    }
   },
   "training": {
     "title": "Entraînement IA",
@@ -155,7 +160,11 @@
     },
     "calendar": "Calendrier économique (45 jours)",
     "noEvents": "Aucun événement sur la période.",
-    "importance": { "haute": "haute", "moyenne": "moyenne", "basse": "basse" }
+    "importance": {
+      "haute": "haute",
+      "moyenne": "moyenne",
+      "basse": "basse"
+    }
   },
   "common": {
     "instrument": "Instrument",
@@ -396,12 +405,24 @@
     "subtitle": "Préférences de l'application",
     "language": "Langue",
     "theme": "Thème",
-    "themes": { "dark": "Sombre", "light": "Clair" },
-    "languages": { "fr": "Français" },
+    "themes": {
+      "dark": "Sombre",
+      "light": "Clair"
+    },
+    "languages": {
+      "fr": "Français"
+    },
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "saved": "Réglages enregistrés.",
     "loadError": "Impossible de charger les réglages.",
-    "saveError": "Échec de l'enregistrement."
+    "saveError": "Échec de l'enregistrement.",
+    "ai": {
+      "title": "Assistant IA",
+      "maxTokens": "Limite de tokens (longueur de réponse)",
+      "maxTokensHelp": "Nombre maximum de tokens générés par réponse (64 à 32 768, limite du modèle qwen2.5-coder).",
+      "temperature": "Température (créativité)",
+      "temperatureHelp": "0 = réponses factuelles et déterministes, 1 = plus créatives."
+    }
   }
 }

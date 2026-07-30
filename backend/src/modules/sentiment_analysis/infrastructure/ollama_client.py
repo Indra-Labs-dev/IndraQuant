@@ -22,17 +22,30 @@ _CHAT_TIMEOUT_SECONDS = 120
 # (docs/roadmap #17 — parallélisation). Bounded to avoid overwhelming a
 # single local Ollama instance with dozens of simultaneous requests.
 _MAX_CONCURRENT_CLASSIFICATIONS = 4
+_MEMORY_TIMEOUT_SECONDS = 60
+_MAX_MEMORY_FACTS = 15
 
 
 class OllamaClient:
-    def chat(self, messages: list[dict]) -> str:
+    def chat(
+        self,
+        messages: list[dict],
+        temperature: float = 0.3,
+        num_predict: int | None = None,
+    ) -> str:
+        """`temperature`/`num_predict` are user-configurable per Settings
+        (see ChatUseCase) — `num_predict` caps the reply length ("limite de
+        tokens"); left unset means Ollama's own model default applies."""
+        options: dict = {"temperature": temperature}
+        if num_predict is not None:
+            options["num_predict"] = num_predict
         response = httpx.post(
             _OLLAMA_CHAT_URL,
             json={
                 "model": _MODEL,
                 "messages": messages,
                 "stream": False,
-                "options": {"temperature": 0.3},
+                "options": options,
             },
             timeout=_CHAT_TIMEOUT_SECONDS,
         )
@@ -161,6 +174,50 @@ class OllamaClient:
                 "event_type": "",
                 "impact": "faible",
             }
+
+    def extract_memory_facts(
+        self, known_facts: list[str], user_message: str, assistant_reply: str
+    ) -> list[str]:
+        """Consolidates the AI Assistant's long-term memory (chat memory):
+        given what is already known plus the latest exchange, returns the
+        full updated fact list (replace-all, not append-only) so the model
+        itself resolves contradictions/updates instead of facts piling up
+        unbounded. Falls back to the unchanged `known_facts` on any failure
+        — a broken extraction call must never erase existing memory."""
+        facts_block = "\n".join(f"- {f}" for f in known_facts) or "(aucun)"
+        prompt = (
+            "Tu maintiens la mémoire long terme d'un assistant financier "
+            "personnel. Faits déjà connus sur l'utilisateur et son "
+            f"contexte :\n{facts_block}\n\n"
+            "Dernier échange :\n"
+            f"Utilisateur : {user_message}\n"
+            f"Assistant : {assistant_reply}\n\n"
+            "Réponds UNIQUEMENT un objet JSON de la forme "
+            '{"facts": ["fait durable 1", "fait durable 2", ...]} listant au '
+            f"maximum {_MAX_MEMORY_FACTS} faits durables et utiles à retenir "
+            "(préférences, objectifs, contraintes, instruments suivis...). "
+            "Mets à jour ou supprime les faits devenus obsolètes plutôt que "
+            "de les accumuler. Ignore le small talk et tout ce qui n'est pas "
+            "durable."
+        )
+        try:
+            response = httpx.post(
+                _OLLAMA_URL,
+                json={
+                    "model": _MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0.1},
+                },
+                timeout=_MEMORY_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            parsed = json.loads(response.json().get("response", "{}"))
+            facts = [str(f).strip() for f in parsed.get("facts", []) if str(f).strip()]
+            return facts[:_MAX_MEMORY_FACTS]
+        except (httpx.HTTPError, json.JSONDecodeError, TypeError, ValueError):
+            return known_facts
 
     def summarize_cluster(self, titles: list[str]) -> str:
         """One short French summary for a cluster of headlines describing

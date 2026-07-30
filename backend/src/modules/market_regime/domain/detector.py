@@ -32,16 +32,10 @@ class MarketRegime:
     explanation: str
 
 
-def efficiency_ratio(closes: list[float], window: int = _ER_WINDOW) -> float | None:
-    """Kaufman's Efficiency Ratio: net displacement over total path length.
-    Near 1 = an efficient, strongly trending move; near 0 = a choppy,
-    range-bound market (lots of back-and-forth for little net progress)."""
-    if len(closes) <= window:
-        return None
-    segment = closes[-(window + 1):]
-    net = abs(segment[-1] - segment[0])
-    path = sum(abs(segment[i] - segment[i - 1]) for i in range(1, len(segment)))
-    return net / path if path > 0 else 0.0
+# Kaufman's Efficiency Ratio is a generic series statistic (no regime-specific
+# concept), so it lives in feature_engineering and is re-exported here for
+# backward compatibility with existing callers/tests of this module.
+efficiency_ratio = fe.efficiency_ratio
 
 
 def detect_regime(
@@ -82,13 +76,7 @@ def detect_regime(
     else:
         trend = "range"
 
-    valid_vols = [v for v in vols[-vol_history:] if v is not None]
-    current_vol = vols[-1]
-    z = 0.0
-    if current_vol is not None and len(valid_vols) >= 10:
-        mean_v = sum(valid_vols) / len(valid_vols)
-        std_v = (sum((v - mean_v) ** 2 for v in valid_vols) / len(valid_vols)) ** 0.5
-        z = (current_vol - mean_v) / std_v if std_v > 0 else 0.0
+    z = fe.windowed_zscore(vols[-1], vols[-vol_history:]) or 0.0
     volatility: VolatilityState = "high" if z > 1.0 else "low" if z < -1.0 else "normal"
 
     last_return = returns[-1] if returns[-1] is not None else 0.0

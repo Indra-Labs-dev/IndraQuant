@@ -22,6 +22,7 @@ from src.modules.machine_learning.infrastructure.direction_model import Directio
 from src.modules.machine_learning.infrastructure.price_target_model import (
     PriceTargetModel,
 )
+from src.modules.market_data.domain.repositories import InstrumentRepository
 from src.modules.prediction_engine.infrastructure.sqlalchemy_repository import (
     PredictionModel,
     SqlAlchemyPredictionRepository,
@@ -36,6 +37,18 @@ _TIMEFRAME_SECONDS = {
 }
 _TRAINING_CANDLES = 1500
 _MIN_ROWS = 200
+# Reference symbol for the correlation_btc_20 feature (only meaningful for
+# other crypto pairs — equities have no comparable single reference among
+# the instruments this platform tracks, and BTC/USDT itself is trivially
+# correlated with itself, so both cases fall back to a neutral feature value
+# inside build_features rather than being force-fit here).
+_CORRELATION_REFERENCE_SYMBOL = "BTC/USDT"
+# Same key format `OptimizeModelHyperparametersUseCase` writes to after a
+# successful search (see hyperparameter_optimization/application/use_cases/
+# optimize_model.py) — this is how a one-off HPO run actually changes what
+# DirectionModel trains with in production, instead of being a read-only
+# diagnostic forever (ADR-038).
+_HPO_CACHE_KEY = "hpo:best_params:{instrument_id}:{timeframe}"
 # Cache hygiene only — correctness comes from the cache key including
 # `as_of`, so a newly-closed candle always misses regardless of this TTL.
 _CACHE_MIN_TTL_SECONDS = 300
@@ -61,6 +74,7 @@ class PredictDirectionUseCase:
         cache=None,
         event_bus: EventBus | None = None,
         model_registry=None,
+        instruments: InstrumentRepository | None = None,
     ) -> None:
         self._ohlcv = ohlcv
         self._model = model
@@ -69,6 +83,7 @@ class PredictDirectionUseCase:
         self._cache = cache
         self._event_bus = event_bus
         self._model_registry = model_registry
+        self._instruments = instruments
 
     async def execute(self, instrument_id: int, timeframe: str) -> DirectionPrediction:
         seconds = _TIMEFRAME_SECONDS.get(timeframe, 3_600)
@@ -95,7 +110,11 @@ class PredictDirectionUseCase:
 
         closes = [c.close for c in response.candles]
         volumes = [c.volume for c in response.candles]
-        rows, labels, returns, latest = build_features(closes, volumes)
+        reference_closes = await self._reference_closes(
+            instrument_id, timeframe, start, end, len(closes)
+        )
+        rows, labels, returns, latest = build_features(closes, volumes, reference_closes)
+        tuned_hyperparameters = await self._tuned_hyperparameters(instrument_id, timeframe)
         if len(rows) < _MIN_ROWS or latest is None:
             raise AppError(
                 "not_enough_data",
@@ -109,7 +128,7 @@ class PredictDirectionUseCase:
         # cores instead of one after the other (ADR-027).
         with ThreadPoolExecutor(max_workers=2) as executor:
             direction_future = executor.submit(
-                self._model.train_predict, rows, labels, latest
+                self._model.train_predict, rows, labels, latest, tuned_hyperparameters
             )
             price_future = executor.submit(
                 self._price_target_model.train_predict, rows, returns, latest
@@ -295,6 +314,50 @@ class PredictDirectionUseCase:
                 )
             )
         return prediction
+
+    async def _reference_closes(
+        self, instrument_id: int, timeframe: str, start: datetime, end: datetime, limit: int
+    ) -> list[float] | None:
+        """Best-effort BTC/USDT close series for the correlation_btc_20
+        feature — `None` for equities, for BTC/USDT itself, or on any
+        failure (never lets a reference-data hiccup break the prediction
+        itself)."""
+        if self._instruments is None:
+            return None
+        try:
+            target = await self._instruments.get(instrument_id)
+            if target is None or target.asset_class != "crypto":
+                return None
+            if target.symbol == _CORRELATION_REFERENCE_SYMBOL:
+                return None
+            crypto_instruments = await self._instruments.list_instruments(asset_class="crypto")
+            reference = next(
+                (i for i in crypto_instruments if i.symbol == _CORRELATION_REFERENCE_SYMBOL),
+                None,
+            )
+            if reference is None:
+                return None
+            response = await self._ohlcv.execute(reference.id, timeframe, start, end, limit)
+            return [c.close for c in response.candles] or None
+        except Exception:
+            return None
+
+    async def _tuned_hyperparameters(
+        self, instrument_id: int, timeframe: str
+    ) -> dict[str, float] | None:
+        """Best-effort lookup of a previously-computed, persisted HPO result
+        for this exact instrument/timeframe — `None` (falls back to
+        `DirectionModel`'s historical defaults) if none has ever been run, or
+        on any cache failure."""
+        if self._cache is None:
+            return None
+        try:
+            cached = await self._cache.get(
+                _HPO_CACHE_KEY.format(instrument_id=instrument_id, timeframe=timeframe)
+            )
+            return json.loads(cached) if cached else None
+        except Exception:
+            return None
 
     async def _record_and_get_track_record(
         self,

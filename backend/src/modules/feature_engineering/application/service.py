@@ -30,3 +30,21 @@ def rolling_max(values: list[float], window: int) -> list[float | None]:
 
 def rolling_min(values: list[float], window: int) -> list[float | None]:
     return series.rolling_min(values, window)
+
+
+def zscore(value: float, mean: float | None, std: float | None) -> float | None:
+    return series.zscore(value, mean, std)
+
+
+def windowed_zscore(
+    current: float | None, history: list[float | None], min_samples: int = 10
+) -> float | None:
+    return series.windowed_zscore(current, history, min_samples)
+
+
+def efficiency_ratio(closes: list[float], window: int) -> float | None:
+    return series.efficiency_ratio(closes, window)
+
+
+def rolling_efficiency_ratio(closes: list[float], window: int) -> list[float | None]:
+    return series.rolling_efficiency_ratio(closes, window)

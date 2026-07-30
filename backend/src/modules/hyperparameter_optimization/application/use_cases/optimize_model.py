@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 
 from src.modules.hyperparameter_optimization.application.dispatch import run_search
@@ -26,19 +27,28 @@ _PARAM_SPECS = [
     ParamSpec("max_depth", "int", 2, 6),
     ParamSpec("learning_rate", "float", 0.01, 0.3),
 ]
+# Same key format `PredictDirectionUseCase` reads from before constructing a
+# `DirectionModel` (see prediction_engine/application/use_cases/
+# predict_direction.py) — kept as a plain literal on both sides rather than a
+# shared constant to avoid a hyperparameter_optimization -> prediction_engine
+# import for a single string.
+_HPO_CACHE_KEY = "hpo:best_params:{instrument_id}:{timeframe}"
+_HPO_CACHE_TTL_SECONDS = 30 * 86_400
 
 
 class OptimizeModelHyperparametersUseCase:
     """Hyperparameter Optimization applied to the Prediction Engine's
     XGBoost direction model (docs/roadmap #8): searches n_estimators/
     max_depth/learning_rate for the combination maximizing mean Time
-    Series CV accuracy (docs/roadmap #7), via the requested engine. This
-    is a read-only diagnostic — it does not change the hyperparameters
-    `DirectionModel` actually trains with in production; it reports what
-    a tuned configuration would look like."""
+    Series CV accuracy (docs/roadmap #7), via the requested engine. A
+    successful search persists its best configuration (ADR-038) so the next
+    `PredictDirectionUseCase` call for this exact instrument/timeframe picks
+    it up — this used to be a read-only diagnostic with no effect on
+    production, now it is the mechanism for actually tuning the model."""
 
-    def __init__(self, ohlcv: OhlcvProvider) -> None:
+    def __init__(self, ohlcv: OhlcvProvider, cache=None) -> None:
         self._ohlcv = ohlcv
+        self._cache = cache
 
     async def execute(self, request: OptimizeModelRequest) -> HpoResultDto:
         seconds = _TIMEFRAME_SECONDS.get(request.timeframe, 3_600)
@@ -68,6 +78,20 @@ class OptimizeModelHyperparametersUseCase:
 
         result = run_search(request.method, _PARAM_SPECS, objective, request.n_trials)
 
+        applied = False
+        if result.best_params is not None and self._cache is not None:
+            try:
+                await self._cache.set(
+                    _HPO_CACHE_KEY.format(
+                        instrument_id=request.instrument_id, timeframe=request.timeframe
+                    ),
+                    json.dumps(result.best_params),
+                    ex=_HPO_CACHE_TTL_SECONDS,
+                )
+                applied = True
+            except Exception:
+                pass
+
         return HpoResultDto(
             method=result.method,
             best_params=result.best_params,
@@ -81,8 +105,15 @@ class OptimizeModelHyperparametersUseCase:
                 f"Optimisation des hyperparamètres XGBoost via {result.method} sur "
                 f"{len(result.trials)} essai(s) : meilleure configuration "
                 f"{result.best_params}, précision moyenne en Time Series CV "
-                f"{(result.best_value or 0) * 100:.1f} %. Ceci est un diagnostic "
-                "en lecture seule — le Prediction Engine continue d'utiliser ses "
-                "hyperparamètres actuels tant qu'ils ne sont pas explicitement mis à jour."
+                f"{(result.best_value or 0) * 100:.1f} %. "
+                + (
+                    "Cette configuration est désormais appliquée : le prochain appel "
+                    "au Prediction Engine pour cet instrument/unité de temps "
+                    "l'utilisera automatiquement (valable 30 jours)."
+                    if applied
+                    else "Configuration non persistée (cache indisponible) — le "
+                    "Prediction Engine continue d'utiliser ses hyperparamètres "
+                    "actuels."
+                )
             ),
         )

@@ -651,6 +651,14 @@ export interface ChatResponse {
   context_note: string;
 }
 
+export interface ChatHistoryResponse {
+  messages: ChatMessage[];
+}
+
+export interface AssistantMemoryResponse {
+  facts: string[];
+}
+
 export interface StrategyParameter {
   name: string;
   label: string;

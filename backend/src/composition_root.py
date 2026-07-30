@@ -12,6 +12,17 @@ from fastapi import Depends, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.ai_assistant.application.use_cases.chat import ChatUseCase
+from src.modules.ai_assistant.application.use_cases.get_chat_history import (
+    GetChatHistoryUseCase,
+)
+from src.modules.ai_assistant.application.use_cases.manage_memory import (
+    ClearMemoryUseCase,
+    GetMemoryUseCase,
+)
+from src.modules.ai_assistant.infrastructure.sqlalchemy_repository import (
+    SqlAlchemyChatRepository,
+    SqlAlchemyMemoryRepository,
+)
 from src.modules.alert_center.application.use_cases.manage_alerts import (
     CheckAlertsUseCase,
     ManageAlertsUseCase,
@@ -409,6 +420,7 @@ def get_predict_direction_use_case(
         cache=redis_client,
         event_bus=event_bus,
         model_registry=RegisterModelVersionUseCase(SqlAlchemyModelVersionRepository(session)),
+        instruments=SqlAlchemyInstrumentRepository(session),
     )
 
 
@@ -548,7 +560,11 @@ def get_optimize_strategy_use_case(
 def get_optimize_model_use_case(
     session: AsyncSession = Depends(get_db_session),
 ) -> OptimizeModelHyperparametersUseCase:
-    return OptimizeModelHyperparametersUseCase(get_ohlcv_use_case(session))
+    from src.shared.infrastructure.cache import redis_client
+
+    return OptimizeModelHyperparametersUseCase(
+        get_ohlcv_use_case(session), cache=redis_client
+    )
 
 
 def get_risk_profile_use_case(
@@ -637,7 +653,29 @@ def get_chat_use_case(session: AsyncSession = Depends(get_db_session)) -> ChatUs
         get_list_instruments_use_case(session),
         get_ohlcv_use_case(session),
         _ollama_client.chat,
+        SqlAlchemyChatRepository(session),
+        SqlAlchemyMemoryRepository(session),
+        _ollama_client.extract_memory_facts,
+        SqlAlchemySettingsRepository(session),
     )
+
+
+def get_chat_history_use_case(
+    session: AsyncSession = Depends(get_db_session),
+) -> GetChatHistoryUseCase:
+    return GetChatHistoryUseCase(SqlAlchemyChatRepository(session))
+
+
+def get_memory_use_case(
+    session: AsyncSession = Depends(get_db_session),
+) -> GetMemoryUseCase:
+    return GetMemoryUseCase(SqlAlchemyMemoryRepository(session))
+
+
+def get_clear_memory_use_case(
+    session: AsyncSession = Depends(get_db_session),
+) -> ClearMemoryUseCase:
+    return ClearMemoryUseCase(SqlAlchemyMemoryRepository(session))
 
 
 def get_manage_alerts_use_case(
